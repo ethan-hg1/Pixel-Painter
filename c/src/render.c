@@ -5,9 +5,6 @@
 
 #include "raylib.h"
 
-#define BACKGROUND   0x303030u   /* same as the asm background (7.5) */
-#define EMPTY_LIGHT  0xDCDCDCu   /* EMPTY cells: light checker by cell */
-#define EMPTY_DARK   0xC4C4C4u
 #define TEXT_COLOR   0xE0E0E0u
 
 static Color rgb(uint32_t c)
@@ -56,7 +53,7 @@ static void draw_status(const AppState *app)
 
 void render_frame(const AppState *app)
 {
-    ClearBackground(rgb(BACKGROUND));
+    ClearBackground(rgb(BG_COLOR));
     draw_canvas(app);
     draw_cursor(app);
     draw_status(app);
