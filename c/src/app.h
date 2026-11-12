@@ -36,8 +36,8 @@ void set_color(AppState *app, uint32_t color);
  * must route keys here and ignore every other shortcut. */
 void entry_start(AppState *app);
 /* Appends c if it is printable ASCII (0x20..0x7E) and the buffer has room
- * (ENTRY_MAX_LEN chars). Anything else is ignored. */
-void entry_add_char(AppState *app, int c);
+ * (ENTRY_MAX_LEN chars); returns 1. Anything else is ignored; returns 0. */
+int  entry_add_char(AppState *app, int c);
 void entry_backspace(AppState *app);
 void entry_cancel(AppState *app);
 /* Leaves entry mode. Valid hex -> set_color; invalid -> status

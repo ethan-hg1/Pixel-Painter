@@ -20,6 +20,7 @@ Team: Ethan, Adrian, Arion.
 | `c/` | C version (CMake project, sources in `c/src`, tests in `c/tests`) |
 | `asm/` | RISC-V version (`main.asm` + one file per module) |
 | `asm/smoke/` | Stand-alone RARS smoke tests (own `main`) |
+| `asm/tests/` | Headless asm unit tests (`test_main.asm`) |
 | `docs/` | Plan, design, RARS setup, findings, report, decisions |
 | `tests/` | Replay key scripts, golden images, manual test plan |
 | `BUILD_INSTRUCTIONS.txt` | Full spec and build plan |
@@ -62,10 +63,12 @@ Headless replay (no window): `./build/pixel_painter --replay ../tests/scripts/de
 
 Full steps with screenshots: `docs/rars_setup.md`.
 
-Assemble-only check (what CI runs):
+What CI runs (assemble check, then the headless asm unit tests):
 
 ```sh
 java -jar rars1_6.jar a nc ae1 p asm/main.asm
+java -jar rars1_6.jar nc sm se2 ae1 asm/tests/test_main.asm \
+    asm/grid.asm asm/hexparse.asm asm/app.asm
 ```
 
 ## Controls

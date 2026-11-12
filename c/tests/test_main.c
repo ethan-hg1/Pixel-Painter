@@ -179,9 +179,11 @@ static void test_color_entry(void)
     entry_start(&app);
     entry_backspace(&app);                        /* on empty: no-op */
     CHECK(app.entry_len == 0);
-    entry_add_char(&app, 0x1B);                   /* control chars ignored */
-    entry_add_char(&app, '\n');
-    entry_add_char(&app, 0x7F);
+    CHECK(entry_add_char(&app, 0x1B) == 0);      /* control chars ignored */
+    CHECK(entry_add_char(&app, '\n') == 0);
+    CHECK(entry_add_char(&app, 0x7F) == 0);
+    CHECK(entry_add_char(&app, 'a') == 1);
+    entry_backspace(&app);
     CHECK(app.entry_len == 0);
     CHECK(entry_confirm(&app) == 0);              /* empty is invalid */
     CHECK(app.color == 0x00FF00FFu);

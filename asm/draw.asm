@@ -9,6 +9,7 @@
 
         .text
         .globl  fill_rect, draw_background, draw_cell, draw_canvas, draw_cursor
+        .globl  draw_preview
 
 # fill_rect(a0 = x, a1 = y, a2 = width, a3 = height, a4 = color)
 # Fills units x .. x+width-1, y .. y+height-1. Computes the first unit's
@@ -37,6 +38,32 @@ fill_rect_next_row:
         addi    t2, t2, -1
         j       fill_rect_row
 fill_rect_done:
+        ret
+
+# draw_preview()
+# Preview swatch (7.5): a FRAME_COLOR square at x 100..123, y 2..25 with
+# the current color inside (x 101..122, y 3..24), so a 1-unit border.
+# Uses: a0-a4.  Calls: fill_rect.  Saves: ra.
+# Reads globals: s2, s7.
+draw_preview:
+        addi    sp, sp, -16
+        sw      ra, 12(sp)
+        li      a0, PREVIEW_X
+        li      a1, PREVIEW_Y
+        li      a2, PREVIEW_SIZE
+        li      a3, PREVIEW_SIZE
+        li      a4, FRAME_COLOR
+        jal     fill_rect
+        li      a0, PREVIEW_X
+        addi    a0, a0, 1
+        li      a1, PREVIEW_Y
+        addi    a1, a1, 1
+        li      a2, PREVIEW_INNER
+        li      a3, PREVIEW_INNER
+        mv      a4, s2
+        jal     fill_rect
+        lw      ra, 12(sp)
+        addi    sp, sp, 16
         ret
 
 # draw_background()

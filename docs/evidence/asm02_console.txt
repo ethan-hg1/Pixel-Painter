@@ -1,0 +1,16 @@
+# RARS Run I/O console, asm step 2 (copied from the RARS GUI).
+# Keys typed into the MMIO keyboard: t w <BS> #00FF00 <Enter> w   t #12345G <Enter>   t ff <Esc>
+# (the 'w' after the first t is typed into the entry buffer, then erased by Backspace;
+#  Backspace reprints the prompt because the console cannot erase.)
+
+Color set: #000000
+
+Color: w
+Color: #00FF00
+Color set: #00FF00
+
+Color: #12345G
+Invalid color
+
+Color: ff
+Cancelled

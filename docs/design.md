@@ -74,24 +74,41 @@ Globals (set once in `main`, never repurposed):
 | `draw_cell` | a0 = row, a1 = col | - | a0-a4, t0-t4 | grid_get, fill_rect | reads s0, s5, s6, s7 |
 | `draw_canvas` | - | - | a0-a4, t0-t4 | draw_cell | reads s1 (+ draw_cell's) |
 | `draw_cursor` | - | - | a0-a4, t0-t4 | grid_get, cursor_color, fill_rect | reads s0, s3-s7 |
+| `draw_preview` | - | - | a0-a4, t0-t4 | fill_rect | reads s2, s7 |
+| `set_color` | a0 = color | - | t0 | - | **writes s2** |
+| `entry_start` | - | - | t0, t1 | - | entry_mode, entry_len, entry_buf |
+| `entry_add_char` | a0 = char | a0 = 1 added / 0 ignored | t0-t2 | - | entry_len, entry_buf |
+| `entry_backspace` | - | - | t0-t2 | - | entry_len, entry_buf |
+| `entry_cancel` | - | - | t0 | - | entry_mode |
+| `entry_confirm` | - | a0 = 1 valid / 0 | a0, a1, t0-t2 | parse_hex, set_color | entry_mode; **writes s2** if valid |
+| `hex_digit_value` | a0 = char | a0 = 0..15 or -1 | t0 | - | - |
+| `parse_hex` | a0 = string address | a0 = 1 ok / 0, a1 = color | a0, a1, t0 | hex_digit_value | - |
 | `read_key` | - | a0 = byte, or -1 if none | t0 | - | - |
-| `handle_key` | a0 = key byte | a0 = 1 quit / 0 | a0-a4, t0-t4 | do_paint, draw_cell, draw_cursor | reads s3, s4 |
+| `handle_key` | a0 = key byte | a0 = 1 quit / 0 | a0-a7, t0-t4 | handle_entry_key, do_paint, draw_cell, draw_cursor, entry_start | reads s3, s4, entry_mode |
+| `handle_entry_key` | a0 = key byte | - | a0-a7, t0-t4 | entry_confirm, entry_cancel, entry_backspace, entry_add_char, draw_preview, print_current_color | - |
+| `print_current_color` | - | - | a0, a7, t0 | print_color | reads s2 |
+| `print_color` | a0 = color | - | a0, a7, t0 | - | - |
 
 Every non-leaf function saves `ra`; any function that uses s8-s11 saves and
 restores them (16-byte stack frames).
 
 ## Memory map
 
-Measured with RARS 1.6 in project mode (asm build step 1):
+All global `.data` is declared in `asm/main.asm` in this order (RARS puts
+the main file's `.data` first; other files' `.data` follows in alphabetical
+file order). Measured with RARS 1.6 in project mode:
 
 | Address | Label | Size | Contents |
 |---------|-------|------|----------|
 | 0x10010000 | `grid` | 1024 B | 256 words, stride 16, EMPTY = 0xFFFFFFFF |
 | 0x10010400 | `n` | 4 B | mirror of s1 |
+| 0x10010404 | `entry_mode` | 4 B | 1 while typing a hex code |
+| 0x10010408 | `entry_len` | 4 B | chars in `entry_buf` |
+| 0x1001040C | `entry_buf` | 8 B | typed chars + 0 byte |
 | 0x10040000 | (display) | 64 KB | Bitmap Display, 128 x 128 words |
 | 0xFFFF0000 / 0xFFFF0004 | (MMIO) | - | keyboard control / data |
 
-`.data` total so far: 1028 bytes (limit 0x30000 = 196,608). TODO: add
+`.data` total so far: 1044 bytes plus the console message strings (limit 0x30000 = 196,608). TODO: add
 palette, history and file buffer as they land.
 
 ## Undo record layout

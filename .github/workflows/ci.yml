@@ -54,7 +54,7 @@ jobs:
           exit $status
 
   asm:
-    name: RARS assemble check
+    name: RARS assemble check and asm tests
     runs-on: ubuntu-latest
     env:
       RARS_URL: https://github.com/TheThirdOne/rars/releases/download/v1.6/rars1_6.jar
@@ -76,6 +76,12 @@ jobs:
       # (docs/decisions.md #4).
       - name: Assemble asm/ (project mode)
         run: java -jar "$RUNNER_TEMP/rars1_6.jar" a nc ae1 p asm/main.asm
+
+      # Headless asm unit tests; exit code = number of failed checks.
+      - name: asm unit tests
+        run: |
+          java -jar "$RUNNER_TEMP/rars1_6.jar" nc sm se2 ae1 \
+            asm/tests/test_main.asm asm/grid.asm asm/hexparse.asm asm/app.asm
 
       - name: Assemble smoke tests
         shell: bash
