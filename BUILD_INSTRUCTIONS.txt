@@ -1,0 +1,835 @@
+===============================================================================
+ PIXEL PAINTER - BUILD INSTRUCTIONS
+ CPE 2300 project  |  Team: Ethan, Adrian, Arion
+ Hand-off document for a coding agent (or a human) building from scratch.
+===============================================================================
+
+HOW TO USE THIS FILE
+--------------------
+- This is the single source of truth for the build. If something here
+  conflicts with an older plan or pitch, THIS FILE WINS.
+- Build in the order given in section 6. Do not start a step until the
+  previous step meets its acceptance criteria (section 13).
+- The C version is written FIRST and is the reference. The RISC-V version
+  is a function-by-function translation of the C version. Keep the two in
+  sync: same function names, same constants, same data layout.
+- Work in a GitHub repo, one branch and one pull request per feature
+  (section 14). Do not push straight to main.
+- Where this file says "DECISION", that choice has already been made. Where
+  it says "ASSUMPTION", the team has not confirmed it; follow it, but call it
+  out in the PR description so a teammate can change it.
+
+
+===============================================================================
+1. PROJECT OVERVIEW
+===============================================================================
+
+Pixel Painter is a small pixel-art editor that runs locally in a window.
+The user picks a grid size from 8x8 up to 16x16, enters colors as hex codes
+(like #FF5733), paints and erases cells, keeps a palette of saved colors,
+undoes and redoes changes, and exports the picture as a PNG file.
+
+It is built twice:
+  1. In C, with a real desktop window (raylib, see section 4), as the
+     reference implementation.
+  2. In RISC-V assembly (RV32IM), running in the RARS simulator, drawing to
+     the RARS Bitmap Display and reading keys from the RARS Keyboard MMIO.
+
+Course goals the project must demonstrate:
+  - Memory-mapped graphics using the pixel address formula (section 7).
+  - Fixed-point arithmetic (section 7.4: cell scaling and the Q8 luminance
+    calculation used to pick the cursor color).
+  - A documented register allocation table and memory map (sections 8, 9).
+  - Safe parsing of user input (hex colors, invalid input rejected).
+  - Writing a valid binary file (PNG, BMP fallback) from assembly.
+  - Test evidence and a live demo.
+
+Team roles (suggested, the team may swap):
+  - Ethan:  grid, drawing, cursor, resize, display layout.
+  - Adrian: keyboard input, hex color input, color preview, palette.
+  - Arion:  undo/redo, PNG/BMP export, testing and test evidence.
+  Everyone must be able to explain the pixel formula and register table
+  at the demo.
+
+
+===============================================================================
+2. FEATURE SPEC
+===============================================================================
+
+2.1 Grid
+  - Square grid, N x N cells, N in [8, 16]. Start at N = 8.
+  - Every cell holds a 24-bit color 0x00RRGGBB, or the special value EMPTY.
+  - DECISION: EMPTY = 0xFFFFFFFF. Black (0x00000000) is a real color, so it
+    cannot mean "empty". EMPTY is drawn as a light checker/gray on screen
+    and exported as white (0x00FFFFFF).
+  - A cursor marks one cell (row, col). It starts at (0, 0). It is drawn as
+    a 1-unit border around the cell, black or white, whichever contrasts
+    better with the cell color (section 7.4).
+
+2.2 Draw  (key: w, or left mouse click in C)
+  - Paints the cell under the cursor with the current color.
+  - In C, a left click on a cell moves the cursor there and paints it.
+  - If the cell already has that color, do nothing (no undo record).
+
+2.3 Erase / delete  (key: e, or right mouse click in C)
+  - Sets the cell under the cursor to EMPTY.
+  - If the cell is already EMPTY, do nothing.
+
+2.4 Color input  (key: t)
+  - Enters "color entry" mode. The user types a hex code, Enter confirms,
+    Esc cancels, Backspace deletes one character.
+  - Valid input: optional '#' followed by exactly 6 hex digits, upper or
+    lower case. Examples: #FF5733, ff5733.
+  - Invalid input: show "Invalid color" (C: on screen; asm: printed to the
+    RARS console), leave the current color unchanged.
+  - While in color entry mode, all other shortcuts are disabled.
+  - Default current color on start: 0x00000000 (black).
+
+2.5 Color preview
+  - A swatch on screen always shows the current color.
+  - C: also show the hex text next to it (e.g. "#FF5733"), and show the
+    text being typed while in color entry mode.
+  - asm: swatch only; the hex text and typed characters are echoed to the
+    RARS console.
+
+2.6 Saved colors palette
+  - 8 slots. Shown as 8 swatches beside the canvas.
+  - p saves the current color into the palette.
+  - The first time a color is used to paint, it is also saved automatically
+    (so "colors you used" are easy to find).
+  - Saving a color already in the palette does nothing (no duplicates).
+  - When all 8 slots are full, the oldest saved color is replaced
+    (FIFO ring: next_slot = (next_slot + 1) mod 8).
+  - Keys 1-8 select that palette slot as the current color. In C, clicking a
+    swatch does the same. Selecting an empty slot does nothing.
+  - Palette changes are NOT part of undo/redo.
+
+2.7 Clear  (key: ctrl+delete)
+  - Sets every cell to EMPTY. Undoable.
+
+2.8 Resize  (keys: ctrl+plus to grow, ctrl+minus to shrink)
+  - Changes N by RESIZE_STEP. ASSUMPTION: RESIZE_STEP = 1, so the sizes are
+    8, 9, ..., 16. Make it a single constant so it can be changed to 4
+    (8, 12, 16) if the team prefers.
+  - Growing past 16 or shrinking below 8 does nothing.
+  - Cells inside the new size keep their colors. When shrinking, cells
+    outside the new size are set to EMPTY. Undoing a shrink brings them back
+    (undo saves a full grid snapshot, section 10).
+  - The cursor is clamped to the new grid.
+  - Undoable.
+
+2.9 Undo / redo  (keys: ctrl+z undo, ctrl+shift+z redo)
+  - Undo reverses the last paint, erase, clear or resize. Redo re-applies it.
+  - Any new action after an undo discards the redo history.
+  - History depth: 64 actions. When full, the oldest action is dropped.
+  - Design in section 10.
+
+2.10 Save PNG  (key: ctrl+s)
+  - Writes the canvas to a PNG file, EXPORT_SCALE = 8 pixels per cell, so a
+    16x16 grid becomes a 128x128 image. EMPTY cells export as white.
+  - C: save to the user's Downloads folder as
+    pixel_painter_YYYYMMDD_HHMMSS.png. Find it with HOME (Linux/macOS) or
+    USERPROFILE (Windows) + "/Downloads". If that folder does not exist,
+    save to the current working directory. Show "Saved: <path>" on screen.
+  - asm: RARS can only write relative to its working directory or to a
+    hard-coded path. Save to "pixel_painter.png" (path stored as a string
+    constant in .data so the team can change it). Print "Saved" to the
+    console.
+  - Format details and the BMP fallback are in section 11.
+
+2.11 On-screen buttons
+  - Ethan asked for buttons like the shortcuts: Undo, Redo, Clear,
+    Resize -, Resize +, Save PNG.
+  - C: REQUIRED. A button row below or beside the canvas. Each button calls
+    the same function as its shortcut.
+  - asm: RARS has no mouse input. Draw the buttons as labeled color blocks
+    only if time allows (stretch goal). Keyboard is the real interface.
+
+
+===============================================================================
+3. KEYBOARD SHORTCUTS
+===============================================================================
+
+On macOS, treat Cmd the same as Ctrl in the C version.
+
+  Action            C version (exact keys)        asm version in RARS (backup)
+  ----------------  ----------------------------  ----------------------------
+  Move cursor       Arrow keys                    i / j / k / l
+                                                  (up / left / down / right)
+  Paint cell        w                             w
+  Erase cell        e                             e
+  Enter hex color   t, type, Enter / Esc          t, type, Enter / Esc
+  Save to palette   p                             p
+  Pick palette      1 .. 8                        1 .. 8
+  Undo              ctrl+z                        z   (also ctrl+z if 0x1A
+                                                       arrives)
+  Redo              ctrl+shift+z                  y
+  Grow grid         ctrl+plus (ctrl+= or          +  (also accept =)
+                    keypad +)
+  Shrink grid       ctrl+minus (ctrl+- or         -
+                    keypad -)
+  Save PNG          ctrl+s                        s   (also ctrl+s if 0x13
+                                                       arrives)
+  Clear canvas      ctrl+delete                   c
+  Quit              Esc (outside color entry),    q
+                    or close the window
+
+RARS KEYBOARD CAVEAT (must be tested in Week 1):
+  The RARS "Keyboard and Display MMIO Simulator" only delivers typed
+  characters, one byte at a time. Arrow keys produce nothing. Ctrl and shift
+  combinations may or may not arrive as control codes (ctrl+z = 0x1A,
+  ctrl+s = 0x13) depending on the Java version and OS. Shift alone changes
+  the character (z -> Z). So the asm version uses the backup keys above as
+  its main controls and ALSO accepts the control codes if they come through.
+  Record in docs/ what actually arrived on each teammate's machine.
+  Lowercase and uppercase letters must both work (fold to lowercase), so
+  in asm Z is also undo, not redo; redo is y.
+
+  Key repeat in C: arrow keys should repeat while held (raylib
+  IsKeyPressedRepeat). Paint/erase do not auto-repeat.
+
+
+===============================================================================
+4. TOOLS AND REPO LAYOUT
+===============================================================================
+
+4.1 Tools
+  - C: C11, CMake >= 3.16, raylib 5.5 (DECISION: raylib over SDL2 because
+    drawing rectangles, text and reading keys/mouse take one call each).
+    raylib is pulled in by CMake FetchContent, so no manual install.
+  - Assembly: RARS 1.6 (rars1_6.jar from github.com/TheThirdOne/rars
+    releases), Java 8+. ISA: RV32IM (multiply/divide allowed).
+  - Image check: any image viewer, plus optional `pngcheck` or Python with
+    Pillow for automated checks.
+
+4.2 Repository layout
+
+  pixel-painter/
+    README.md                  what it is, how to build/run, team, controls
+    BUILD_INSTRUCTIONS.txt     this file
+    .gitignore                 build/, *.png in repo root, .DS_Store, etc.
+    .github/
+      workflows/ci.yml         build C + run unit tests (section 12.4)
+      pull_request_template.md
+    c/
+      CMakeLists.txt
+      src/
+        main.c                 window, main loop, input dispatch
+        config.h               all constants (section 7.1)
+        grid.c / grid.h        grid array, get/set cell, clear, resize
+        history.c / .h         undo/redo (section 10)
+        palette.c / .h         saved colors
+        hexparse.c / .h        parse_hex()
+        render.c / .h          draws canvas, cursor, preview, palette,
+                               buttons (only file that calls raylib
+                               drawing)
+        export_png.c / .h      PNG writer, crc32, adler32 (no raylib, no
+                               libpng, no zlib: hand-written like the asm)
+        export_bmp.c / .h      BMP writer (fallback)
+        app.c / app.h          app_state struct + one function per action
+                               (do_paint, do_erase, do_clear, do_resize,
+                               do_undo, do_redo, do_save, set_color,
+                               palette_add, palette_pick). Both keyboard,
+                               mouse and buttons call these.
+        replay.c               headless mode (section 12.2)
+      tests/
+        test_main.c            tiny assert-based test runner, no raylib
+    asm/
+      main.asm                 entry point `main`, init, main loop
+      constants.asm            .eqv constants (same values as config.h)
+      grid.asm                 grid get/set, clear, resize
+      draw.asm                 display drawing: fill_rect, draw_cell,
+                               draw_canvas, draw_cursor, draw_preview,
+                               draw_palette
+      input.asm                keyboard MMIO polling, key dispatch,
+                               color entry mode
+      hexparse.asm             parse_hex
+      history.asm              undo/redo
+      palette.asm              palette
+      export.asm               PNG (and BMP) writer, crc32, adler32
+      first_pixels.asm         Week 1 smoke test (one colored pixel)
+    docs/
+      plan.md                  one-page plan (Week 1)
+      design.md                pseudocode, register table, memory map
+                               (Week 2)
+      rars_setup.md            exact RARS settings, with screenshots
+      keyboard_findings.md     what keys RARS delivered on each machine
+      report.md                final report (Week 4)
+      reflections/             one file per teammate
+      evidence/                screenshots, exported PNGs, test logs
+    tests/
+      scripts/                 replay key scripts (*.keys) for headless runs
+      golden/                  expected output images from the C version
+      manual_test_plan.md      checklist for testing the asm build by hand
+
+  Keep logic and drawing separate in C: app.c, grid.c, history.c,
+  palette.c, hexparse.c and export_*.c must not include raylib.h. This lets
+  tests and the replay mode build without a window, and it makes each file
+  map cleanly onto an asm file.
+
+
+===============================================================================
+5. 4-WEEK SCHEDULE
+===============================================================================
+
+Each week ends with something concrete to hand in or show. Fill in real
+dates in docs/plan.md.
+
+WEEK 1 - Choose and plan
+  DUE: project choice + approved plan
+  - Create the repo with the layout above (empty files are fine), README,
+    .gitignore, PR template.
+  - Learn the two core ideas: fixed-point (section 7.4) and the pixel
+    formula (section 7.2).
+  - First Pixels: asm/first_pixels.asm puts one hard-coded colored pixel on
+    the RARS Bitmap Display, then a filled 8x8 block.
+  - Run the RARS keyboard test (section 3 caveat). Write
+    docs/keyboard_findings.md.
+  - Write docs/plan.md (one page: features, roles, schedule, risks).
+
+WEEK 2 - Design and first light
+  DUE: design doc + a working slice
+  - C version, build steps 1-5 (section 6) fully working in a window.
+  - docs/design.md: pseudocode for every action, register allocation table
+    (section 8), memory map (section 9), undo record layout (section 10).
+  - Assembly working slice = build steps 1-3: grid drawn, cursor moves with
+    i/j/k/l, w paints, e erases, t sets a color, preview swatch updates.
+  - Test that RARS can write a file (write a 4-byte test file with syscall
+    1024/64/57) so export risk is known early.
+
+WEEK 3 - Build and debug
+  DUE: feature-complete, runs with no faults
+  - C version: build steps 6-8 finished (palette, PNG, buttons).
+  - Assembly: translate build steps 4-7, one function at a time, testing
+    each against the C version (section 12.3).
+  - Expect most bugs to be register clobbering (forgot to save ra or an
+    s-register) and off-by-one loop bounds at N = 16. Single-step them.
+  - Decision point (end of Week 3 day 4): if asm PNG output is not passing,
+    switch the asm export to BMP (section 11.3) and keep PNG in C.
+
+WEEK 4 - Polish, write, demo
+  DUE: final submission + demo
+  - One stretch feature (pick one): on-screen buttons in asm, flood fill
+    (key f), or a grid-lines toggle (key g).
+  - Collect test evidence (section 12.5).
+  - Write docs/report.md and each reflection.
+  - Rehearse the demo/viva: everyone explains the pixel formula, the
+    register table, and how undo works.
+
+
+===============================================================================
+6. BUILD ORDER
+===============================================================================
+
+Build each step in C first, then in asm. Each step is one branch/PR per
+language (e.g. feat/c-03-keyboard, feat/asm-03-keyboard).
+
+  Step 1. Grid and draw
+          Window/display shows the N x N grid and the cursor. w paints the
+          cursor cell with the current color (hard-coded at this step).
+  Step 2. Color input and preview
+          t enters a hex code; parse_hex validates it; preview swatch shows
+          the current color.
+  Step 3. Keyboard controls
+          Arrows (C) / i,j,k,l (asm) move the cursor with wrap-free clamping
+          at the edges, w paints, e erases. C also gets mouse click to
+          paint / right-click to erase. From here on, all testing is done
+          with the keyboard.
+  Step 4. Clear and resize
+          ctrl+delete clears. ctrl+plus/ctrl+minus resize between 8 and 16.
+  Step 5. Undo / redo
+          History records for paint, erase, clear and resize.
+  Step 6. Saved colors palette
+          8 swatches, p saves, auto-save on first paint, 1-8 picks.
+  Step 7. Save PNG
+          ctrl+s writes the PNG. Last because it is the hardest in asm.
+  Step 8. On-screen buttons
+          Required in C, stretch goal in asm.
+
+
+===============================================================================
+7. DATA STRUCTURES, FORMULAS, CONSTANTS
+===============================================================================
+
+7.1 Constants (identical in c/src/config.h and asm/constants.asm)
+
+  MIN_N          = 8
+  MAX_N          = 16
+  START_N        = 8
+  RESIZE_STEP    = 1
+  GRID_STRIDE    = 16          (always MAX_N, see 7.2)
+  EMPTY          = 0xFFFFFFFF
+  HISTORY_DEPTH  = 64          (power of two, so ring index = i & 63)
+  PALETTE_SLOTS  = 8
+  EXPORT_SCALE   = 8           (image pixels per cell)
+  CANVAS_UNITS   = 96          (asm: canvas area is 96 x 96 display units)
+  DISPLAY_W      = 128         (asm: display width in units)
+  DISPLAY_H      = 128
+  DISPLAY_BASE   = 0x10040000  (asm only)
+  KBD_CTRL       = 0xFFFF0000  (asm only, receiver control, bit 0 = ready)
+  KBD_DATA       = 0xFFFF0004  (asm only, received byte)
+
+7.2 The grid and the pixel address formula
+
+  The grid is a fixed array of MAX_N * MAX_N = 256 words (1 KB), one 32-bit
+  word per cell, row-major. DECISION: the row stride is always 16
+  (GRID_STRIDE), not the current N. This means resize never has to move
+  memory, only change N and clear the cells that fall outside.
+
+    Grid cell address:
+      addr = GRID_BASE + (row * GRID_STRIDE + col) * 4
+           = GRID_BASE + ((row << 4) + col) << 2
+
+    Display unit address (asm, RARS Bitmap Display):
+      addr = DISPLAY_BASE + (y * DISPLAY_W + x) * 4
+           = DISPLAY_BASE + ((y << 7) + x) << 2
+
+  C equivalent:
+    uint32_t grid[MAX_N * MAX_N];
+    int n;                       // current size
+    grid[row * GRID_STRIDE + col]
+
+7.3 App state (C struct; in asm these are .data words / globals in
+    s-registers, see section 8)
+
+    typedef struct {
+        uint32_t grid[MAX_N * MAX_N];
+        int      n;               // current grid size
+        int      cur_row, cur_col;
+        uint32_t color;           // current color 0x00RRGGBB
+        uint32_t palette[PALETTE_SLOTS];  // EMPTY = unused slot
+        int      palette_next;    // next slot to overwrite (FIFO)
+        History  hist;            // section 10
+        int      entry_mode;      // 1 while typing a hex code
+        char     entry_buf[8];    // '#' + 6 digits + '\0'
+        int      entry_len;
+        char     status[64];      // message line (C only)
+    } AppState;
+
+7.4 Fixed-point uses
+
+  a) Cell size (integer scaling, asm and C):
+       cell   = CANVAS_UNITS / n          (integer division, floor)
+       offset = (CANVAS_UNITS - n * cell) / 2   (centers the canvas)
+     Example: n = 8 -> cell 12, offset 0; n = 11 -> cell 8, offset 4;
+     n = 16 -> cell 6, offset 0.
+     Cell (row, col) covers display units
+       x from offset + col*cell to offset + col*cell + cell - 1
+       y from offset + row*cell to offset + row*cell + cell - 1
+
+  b) Luminance in Q8 fixed point (chooses black or white cursor):
+       Y = (77*R + 150*G + 29*B) >> 8
+     (77, 150, 29 are 0.299, 0.587, 0.114 times 256, rounded.)
+     If Y >= 128 draw the cursor in black, else in white. EMPTY counts as
+     light (black cursor). Explain this in the report as the fixed-point
+     example.
+
+  C version layout: free to design (window about 900 x 700, canvas on the
+  left, preview, hex text, palette and buttons on the right, status line at
+  the bottom). Use the same cell/offset formula scaled to the window.
+
+7.5 asm display layout (128 x 128 units, unit = 4x4 screen pixels)
+
+    Canvas          x 0..95,    y 0..95
+    Preview swatch  x 100..123, y 2..25    (24 x 24, with 1-unit border)
+    Palette slots   10 x 10 swatches, two columns at x 100 and x 113,
+                    rows at y 32, 45, 58, 71 (slot k: column k & 1,
+                    row k >> 1). Empty slots drawn as dark gray outline.
+    Background      0x00303030
+    Buttons         (stretch) y 100..127
+
+
+===============================================================================
+8. REGISTER CONVENTIONS (asm)
+===============================================================================
+
+Follow the standard RISC-V calling convention:
+  - a0-a7: arguments and return values (caller-saved)
+  - t0-t6: temporaries (caller-saved, assume clobbered by any call)
+  - s0-s11: saved (callee-saved: a function that uses one must push it on
+    entry and pop it on exit)
+  - ra: return address; any function that calls another function must
+    save ra on the stack.
+  - sp: stack pointer, 16-byte aligned frames.
+
+Global register allocation (set once in main, never repurposed):
+
+  s0  = GRID_BASE (address of grid)
+  s1  = n (current grid size)          -- also mirrored in .data `n`
+  s2  = current color
+  s3  = cursor row
+  s4  = cursor col
+  s5  = cell size in units (recomputed after every resize)
+  s6  = canvas offset in units (recomputed after every resize)
+  s7  = DISPLAY_BASE
+  s8-s11 = free for local use inside functions (save/restore them)
+
+Because s0-s7 are globals, helper functions must not write them, except
+the functions whose job is to change them (resize, undo/redo of a resize,
+set_color, move_cursor), which must be documented as such.
+
+Every asm function gets a header comment in this form:
+
+  # draw_cell(a0 = row, a1 = col)
+  # Draws one grid cell at its scaled display position.
+  # Uses: t0-t4.  Calls: fill_rect.  Saves: ra.
+  # Reads globals: s0, s5, s6, s7.
+
+The full table (every function, its args, returns, clobbers) goes in
+docs/design.md.
+
+Syscalls used (RARS):
+  4 PrintString, 11 PrintChar, 1 PrintInt, 34 PrintIntHex, 10 Exit,
+  32 Sleep (ms, use 10 ms in the main loop to keep CPU use low),
+  1024 Open (a1 = 1 for write-create), 64 Write, 57 Close.
+
+
+===============================================================================
+9. MEMORY MAP (asm)
+===============================================================================
+
+  Address range              Size      Contents
+  -------------------------  --------  -------------------------------------
+  0x00400000 ...             -         .text (code)
+  0x10010000 ...             ~125 KB   .data, in this order:
+      grid                   1 KB        256 words, stride 16
+      n, palette_next, etc.  small       scalar state words
+      palette                32 B        8 words
+      hist_records           2 KB        64 records x 32 bytes
+      hist_snaps             64 KB       64 snapshots x 1 KB (256 words)
+      hist_start, hist_len,
+      hist_pos               12 B
+      entry_buf              8 B         typed hex chars
+      file_buf               52 KB       export buffer (.space 53248)
+      strings                small       messages, file name
+  0x10040000 - 0x1004FFFF    64 KB     Bitmap Display (128 x 128 words)
+  0x7FFFEFFC (downward)      -         stack
+  0xFFFF0000 / 0xFFFF0004    -         Keyboard MMIO control / data
+
+Use labels for everything in .data; only DISPLAY_BASE and the MMIO
+addresses are hard-coded. The display is placed in the "heap" area, so the
+program must NOT call sbrk (syscall 9). Keep the .data total under
+0x30000 bytes (192 KB) so it never reaches the display; add an assembler
+check comment with the computed total in design.md.
+
+
+===============================================================================
+10. UNDO / REDO DESIGN
+===============================================================================
+
+History is a ring buffer of HISTORY_DEPTH = 64 records. Each record has a
+matching 1 KB snapshot slot (same index), used only by CLEAR and RESIZE.
+
+Record layout (32 bytes, same in C struct and asm):
+  +0   type       1 = PAINT (covers erase: new = EMPTY), 2 = CLEAR,
+                  3 = RESIZE
+  +4   row        (PAINT)
+  +8   col        (PAINT)
+  +12  old_color  (PAINT)
+  +16  new_color  (PAINT)
+  +20  old_n      (RESIZE, CLEAR)
+  +24  new_n      (RESIZE)
+  +28  unused
+
+State:
+  hist_start  ring index of the oldest record
+  hist_len    number of valid records
+  hist_pos    number of records currently applied (0..hist_len)
+  slot(i)  =  (hist_start + i) & 63
+
+push(record):                       # called by every new action
+  hist_len = hist_pos                # drop the redo tail
+  if hist_len == 64:                 # full: forget the oldest
+      hist_start = (hist_start + 1) & 63
+      hist_len  -= 1
+      hist_pos  -= 1
+  s = slot(hist_pos)
+  write record at hist_records[s]
+  if type is CLEAR or RESIZE: copy all 256 grid words to hist_snaps[s]
+                              BEFORE changing the grid
+  hist_pos += 1 ; hist_len = hist_pos
+
+undo:
+  if hist_pos == 0: do nothing
+  hist_pos -= 1 ; r = record at slot(hist_pos)
+  PAINT:  grid[r.row][r.col] = r.old_color
+  CLEAR:  copy hist_snaps[slot] back into grid
+  RESIZE: copy hist_snaps[slot] back into grid; n = r.old_n;
+          recompute cell size/offset; clamp cursor
+
+redo:
+  if hist_pos == hist_len: do nothing
+  r = record at slot(hist_pos) ; hist_pos += 1
+  PAINT:  grid[r.row][r.col] = r.new_color
+  CLEAR:  clear grid (do NOT push a new record)
+  RESIZE: apply resize to r.new_n (do NOT push a new record)
+
+Rules:
+  - The action functions (do_paint, do_clear, do_resize) take a flag
+    `record` so undo/redo can reuse them without pushing new records, or
+    split them into apply_* (no history) and do_* (push + apply).
+  - No-op actions push nothing (painting a cell its own color, erasing an
+    empty cell, resizing past the limits, clearing an already-empty grid
+    is allowed to push; keep it simple).
+  - After undo or redo, redraw the whole canvas.
+  - Memory: 64 x 32 B + 64 x 1 KB = 66 KB. Fine in RARS.
+
+
+===============================================================================
+11. EXPORT: PNG PLAN AND BMP FALLBACK
+===============================================================================
+
+11.1 Image
+  W = H = n * EXPORT_SCALE (64..128 pixels). 24-bit RGB, no alpha.
+  Pixel (x, y) takes the color of cell (y / 8, x / 8); EMPTY -> 0xFFFFFF.
+
+11.2 PNG, written by hand (no zlib, no libpng, in C and asm alike)
+  The trick that keeps this doable in assembly: use zlib "stored"
+  (uncompressed) deflate blocks. The largest image is 128 x 128, whose raw
+  data is 128 * (1 + 128*3) = 49,280 bytes, under the 65,535-byte limit of
+  a single stored block, so exactly ONE block is ever needed.
+
+  File layout (all multi-byte integers big-endian unless noted):
+    1. Signature: 89 50 4E 47 0D 0A 1A 0A
+    2. IHDR chunk:
+         length = 13
+         "IHDR"
+         width (4 B), height (4 B), bit depth 8, color type 2 (RGB),
+         compression 0, filter 0, interlace 0
+         CRC32 over "IHDR" + the 13 data bytes
+    3. IDAT chunk:
+         length = 2 + 5 + RAWLEN + 4
+         "IDAT"
+         zlib header: 78 01
+         stored block header: 01 (BFINAL=1, BTYPE=00)
+         LEN  = RAWLEN as 2 bytes LITTLE-endian
+         NLEN = ~RAWLEN as 2 bytes LITTLE-endian
+         raw data: for each row: one filter byte 00, then W x (R, G, B)
+         Adler-32 of the raw data, 4 bytes big-endian
+         CRC32 over "IDAT" + all IDAT data bytes
+    4. IEND chunk: 00 00 00 00 "IEND" AE 42 60 82
+
+  CRC32: reflected polynomial 0xEDB88320, init 0xFFFFFFFF, process each byte
+  bitwise (8 shifts per byte, no table needed), final XOR 0xFFFFFFFF.
+  Known check: crc32("IEND") = 0xAE426082.
+  Adler-32: a = 1, b = 0; for each byte: a = (a + byte) % 65521,
+  b = (b + a) % 65521; result = (b << 16) | a.
+  Known check: adler32("Wikipedia") = 0x11E60398.
+
+  In asm, build the whole file in file_buf with byte stores (sb), since
+  RISC-V is little-endian and PNG is big-endian: write a helper
+  put_be32(a0 = value) that stores 4 bytes high byte first and advances a
+  write pointer. Then one Open / Write / Close.
+
+11.3 BMP fallback (if asm PNG is not passing by the Week 3 decision point)
+  24-bit uncompressed BMP, little-endian:
+    "BM", file size (4), 0 (4), pixel offset = 54 (4)
+    DIB header: 40, W, H (positive = bottom-up), planes 1 (2 B),
+    bpp 24 (2 B), compression 0, image size, 2835, 2835, 0, 0
+    Pixel rows from BOTTOM to top, each pixel as B, G, R, each row padded
+    to a multiple of 4 bytes (W*3 is always a multiple of 4 here because
+    W is a multiple of 8, so no padding is actually needed).
+  File name pixel_painter.bmp. Keep the PNG writer in C either way, and
+  write the BMP writer in C too so the asm has a reference.
+
+
+===============================================================================
+12. BUILD, RUN AND TEST
+===============================================================================
+
+12.1 C version
+
+  CMakeLists.txt pulls raylib with FetchContent:
+    include(FetchContent)
+    FetchContent_Declare(raylib
+      GIT_REPOSITORY https://github.com/raysan5/raylib.git
+      GIT_TAG 5.5)
+    FetchContent_MakeAvailable(raylib)
+  Targets:
+    pixel_painter   (all src files, links raylib)
+    pp_tests        (tests/test_main.c + logic files only, no raylib)
+
+  Build and run (Linux, macOS, Windows with a CMake-capable toolchain):
+    cd c
+    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+    cmake --build build
+    ./build/pixel_painter            (Windows: build\Release\pixel_painter.exe)
+    ./build/pp_tests                 exits 0 when all tests pass
+  Linux needs the usual X11/OpenGL dev packages for raylib
+  (e.g. libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+  libgl1-mesa-dev on Ubuntu). Put these in README.md.
+
+  Compile with -Wall -Wextra and fix all warnings.
+
+12.2 Headless replay mode (C)
+  pixel_painter --replay tests/scripts/demo.keys --out out.png
+  Reads a key script, applies each action through app.c without opening a
+  window, then saves the PNG to --out. Script format: one token per line,
+  using the asm key names (w, e, i, j, k, l, z, y, +, -, c, p, 1-8) plus
+  "t #RRGGBB" for color entry. This gives deterministic outputs for tests
+  and for byte-comparing against the asm version.
+
+12.3 Assembly version in RARS (GUI is required for the display)
+  1. java -jar rars1_6.jar
+  2. Settings: check "Assemble all files in directory" and
+     "Initialize Program Counter to global 'main' if defined".
+     Mark `main` with .globl main in main.asm.
+  3. File > Open asm/main.asm.
+  4. Tools > Bitmap Display:
+       Unit Width 4, Unit Height 4, Display Width 512, Display Height 512,
+       Base address 0x10040000 (heap). Click "Connect to Program".
+  5. Tools > Keyboard and Display MMIO Simulator: "Connect to Program".
+     Click in its lower (keyboard) text box before typing keys.
+  6. Assemble (F3), Run (F5). Set run speed to max.
+  Put these steps with screenshots in docs/rars_setup.md.
+  Assemble-only check from the command line (used in CI):
+    java -jar rars1_6.jar a nc p asm/main.asm
+  (a = assemble only, nc = no copyright notice, p = all files in the
+  directory.) Verify these flags against `java -jar rars1_6.jar h` for the
+  version you download; exclude first_pixels.asm from the directory or give
+  it its own folder (asm/smoke/) so it does not define a second `main`.
+
+  Testing asm against C: for each feature, type the same key sequence as a
+  tests/scripts/*.keys file into RARS, then compare (a) a screenshot of the
+  display with the C window and (b) the exported file with the C replay
+  output: `cmp pixel_painter.png tests/golden/<name>.png` must report no
+  difference.
+
+12.4 Continuous integration (.github/workflows/ci.yml)
+  On every push and PR, on ubuntu-latest:
+    - install raylib's Linux dev packages
+    - configure, build, run pp_tests
+    - run replay on every tests/scripts/*.keys and cmp against
+      tests/golden/*.png
+    - (optional) download rars1_6.jar and run the assemble-only check
+  A PR may not be merged with CI red.
+
+12.5 Unit tests (c/tests/test_main.c, minimum list)
+  - parse_hex: "#FF5733", "ff5733", "#ff5733" valid; "", "#", "FF573",
+    "FF57333", "#GG0000", "12 456" invalid.
+  - cell address formula for (0,0), (0,15), (15,0), (15,15).
+  - cell size/offset for every n from 8 to 16.
+  - luminance: black -> white cursor, white -> black cursor.
+  - history: paint/undo/redo; redo cleared by a new action; 65 actions
+    drops the oldest; undo of a shrink restores cleared cells and n.
+  - palette: no duplicates, FIFO replace when full, empty slot pick is a
+    no-op.
+  - crc32("IEND") == 0xAE426082, adler32("Wikipedia") == 0x11E60398.
+  - export: generated 8x8 PNG and 16x16 PNG match golden files.
+
+12.6 Test evidence for the report (docs/evidence/)
+  - Screenshots at 8x8, 12x12 and 16x16, in C and in RARS.
+  - Each shortcut demonstrated (a short table: key, expected, result).
+  - Invalid hex input rejected, color unchanged.
+  - Undo after clear, undo after shrink (cells come back), redo after undo.
+  - Palette: 9 saved colors shows the FIFO replacement.
+  - Exported PNG (or BMP) opening in a normal image viewer, from both
+    versions, and the `cmp` result.
+  - RARS runs a full demo session with no runtime exceptions.
+
+
+===============================================================================
+13. ACCEPTANCE CRITERIA PER STEP
+===============================================================================
+
+A step is done only when every item passes in the version being built
+(C first, then asm), and the PR includes evidence (screenshot or test log).
+
+Week 1 First Pixels (asm)
+  [ ] One hard-coded pixel and one 8x8 block appear at the right place
+      using the display formula.
+  [ ] docs/keyboard_findings.md lists what bytes RARS delivered for
+      ctrl+z, ctrl+s, arrows, shift+z on each teammate's machine.
+
+Step 1 Grid and draw
+  [ ] 8x8 grid drawn, cells visibly separated (or checkered when EMPTY).
+  [ ] Cursor visible on (0,0); w paints it.
+  [ ] Grid memory holds the color at GRID_BASE + ((row<<4)+col)<<2.
+
+Step 2 Color input and preview
+  [ ] t, then "#00FF00", Enter -> preview turns green.
+  [ ] t, then "#12345G", Enter -> "Invalid color", color unchanged.
+  [ ] Esc cancels entry; Backspace works; other keys ignored in entry mode.
+
+Step 3 Keyboard controls
+  [ ] Cursor moves in all four directions and stops at the edges (no wrap,
+      no out-of-bounds write) at n = 8 and n = 16.
+  [ ] w paints, e erases. C: left click paints, right click erases.
+  [ ] Cursor color flips between black and white on dark/light cells.
+
+Step 4 Clear and resize
+  [ ] ctrl+delete (C) / c (asm) empties every cell.
+  [ ] Resize goes 8 -> 16 and back, stops at both limits.
+  [ ] Shrinking empties cells outside; cursor stays inside the grid.
+  [ ] Canvas stays centered (cell/offset formula) at every size.
+
+Step 5 Undo / redo
+  [ ] Paint 3 cells, undo 3 times -> all empty; redo 3 times -> back.
+  [ ] New action after undo -> redo does nothing.
+  [ ] Undo after clear and after shrink restores everything, including n.
+  [ ] 70 actions in a row, then undo 70 times: exactly 64 undo, no crash.
+
+Step 6 Palette
+  [ ] p saves; painting with a new color auto-saves it; no duplicates.
+  [ ] 9th color replaces the oldest; 1-8 select; empty slot does nothing.
+
+Step 7 Save PNG
+  [ ] File opens in an image viewer at n*8 x n*8 pixels with the right
+      colors; EMPTY is white.
+  [ ] C saves to Downloads (or cwd fallback) with a timestamped name.
+  [ ] asm output is byte-identical to the C replay output for the same
+      key script (or the BMP equivalent if the fallback was taken).
+
+Step 8 Buttons
+  [ ] C: each button does exactly what its shortcut does, including undo
+      history.
+
+Final
+  [ ] No compiler warnings; CI green.
+  [ ] RARS full session with every feature, no exceptions.
+  [ ] docs/design.md register table matches the code.
+  [ ] README explains build, run and controls for both versions.
+
+
+===============================================================================
+14. GIT CONVENTIONS
+===============================================================================
+
+  - main always builds and passes CI. No direct pushes to main.
+  - One branch per feature per language:
+      feat/c-01-grid-draw, feat/c-02-color-input, ..., feat/asm-05-undo
+      fix/<short-description> for bug fixes
+      docs/<short-description> for documentation-only changes
+  - Small commits with clear messages in the imperative mood:
+      "Add parse_hex with validation"
+      "Fix off-by-one in resize clear loop"
+  - Open a pull request for every branch. The PR description includes:
+      what changed, which step/acceptance criteria it meets, evidence
+      (screenshot or test output), and any ASSUMPTION it relies on.
+  - At least one teammate reviews and approves before merge. Squash-merge.
+  - Tag the end of each week: v0.1-week1, v0.2-week2, v0.3-week3,
+    v1.0-final.
+  - Do not commit build/ folders, rars jars, or personal test PNGs outside
+    tests/golden and docs/evidence.
+
+
+===============================================================================
+15. KNOWN RISKS AND HOW THEY ARE HANDLED
+===============================================================================
+
+  - RARS keyboard only sends typed characters -> backup keys (section 3).
+  - RARS has no mouse -> asm is keyboard only; buttons are a stretch goal.
+  - Saving to Downloads from RARS -> asm saves next to RARS (or a hard-coded
+    path string); C saves to Downloads.
+  - PNG in asm is the hardest piece -> stored deflate block, bitwise CRC,
+    BMP fallback with a fixed decision date.
+  - Register clobbering -> strict header comment on every function,
+    callee-saved s-registers, save ra in every non-leaf function,
+    single-step in RARS.
+  - Undo memory growth -> fixed 64-entry ring buffer, fixed 66 KB.
+  - Display overwriting data -> display at 0x10040000, no sbrk,
+    .data kept under 192 KB.
+
+===============================================================================
+END OF FILE
+===============================================================================

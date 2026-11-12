@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  c:
+    name: C build, unit tests, replay
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install raylib Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev \
+            libxcursor-dev libxi-dev libgl1-mesa-dev
+
+      - name: Configure
+        run: cmake -S c -B c/build -DCMAKE_BUILD_TYPE=Release -DPP_WERROR=ON
+
+      - name: Build
+        run: cmake --build c/build -j
+
+      - name: Unit tests
+        run: ./c/build/pp_tests
+
+      - name: Replay scripts vs golden images
+        shell: bash
+        run: |
+          shopt -s nullglob
+          scripts=(tests/scripts/*.keys)
+          if [ ${#scripts[@]} -eq 0 ]; then
+            echo "No replay scripts yet."
+            exit 0
+          fi
+          status=0
+          for script in "${scripts[@]}"; do
+            name=$(basename "$script" .keys)
+            golden="tests/golden/$name.png"
+            out="$RUNNER_TEMP/$name.png"
+            ./c/build/pixel_painter --replay "$script" --out "$out"
+            if [ ! -f "$golden" ]; then
+              echo "::error::missing golden image $golden"
+              status=1
+            elif ! cmp "$out" "$golden"; then
+              echo "::error::$name.png differs from $golden"
+              status=1
+            else
+              echo "ok  $name"
+            fi
+          done
+          exit $status
+
+  asm:
+    name: RARS assemble check
+    runs-on: ubuntu-latest
+    env:
+      RARS_URL: https://github.com/TheThirdOne/rars/releases/download/v1.6/rars1_6.jar
+      RARS_SHA256: 780f730eb457b1ba609e968accc2c8b77d8f92c3d9dbf30cc7fdb3cfb14e8c24
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Download RARS 1.6
+        run: |
+          curl -sSL -o "$RUNNER_TEMP/rars1_6.jar" "$RARS_URL"
+          echo "$RARS_SHA256  $RUNNER_TEMP/rars1_6.jar" | sha256sum -c -
+
+      # `ae1` makes RARS exit 1 on an assembly error; without it RARS exits 0
+      # (docs/decisions.md #4).
+      - name: Assemble asm/ (project mode)
+        run: java -jar "$RUNNER_TEMP/rars1_6.jar" a nc ae1 p asm/main.asm
+
+      - name: Assemble smoke tests
+        shell: bash
+        run: |
+          shopt -s nullglob
+          for f in asm/smoke/*.asm; do
+            echo "assembling $f"
+            java -jar "$RUNNER_TEMP/rars1_6.jar" a nc ae1 "$f"
+          done
