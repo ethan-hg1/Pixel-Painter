@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "app.h"
 #include "raylib.h"
 #include "render.h"
 #include "replay.h"
@@ -33,14 +34,20 @@ int main(int argc, char **argv)
         return replay_run(script, out);
     }
 
+    static AppState app; /* static: ~1 KB grid, keep it off the stack */
+    app_init(&app);
+
     InitWindow(WINDOW_W, WINDOW_H, "Pixel Painter");
     SetExitKey(KEY_NULL); /* Esc must not quit (docs/decisions.md #2) */
     SetTargetFPS(60);
 
     while (!WindowShouldClose()) {
+        if (IsKeyPressed(KEY_W)) {
+            do_paint(&app);
+        }
+
         BeginDrawing();
-        ClearBackground((Color){ 0x30, 0x30, 0x30, 0xFF });
-        DrawText("Pixel Painter", 20, 20, 30, RAYWHITE);
+        render_frame(&app);
         EndDrawing();
     }
 
