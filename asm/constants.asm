@@ -11,6 +11,7 @@
 .eqv EMPTY          0xFFFFFFFF  # black 0x00000000 is a real color
 .eqv HISTORY_DEPTH  64          # power of two: ring index = i & 63
 .eqv PALETTE_SLOTS  8
+.eqv ENTRY_MAX_LEN  7           # '#' + 6 hex digits; buffer is 8 bytes
 .eqv EXPORT_SCALE   8           # image pixels per cell
 .eqv CANVAS_UNITS   96          # canvas area, 96 x 96 units
 .eqv DISPLAY_W      128         # display width in units

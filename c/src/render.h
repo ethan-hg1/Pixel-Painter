@@ -14,6 +14,11 @@
 #define CANVAS_Y     30
 #define CANVAS_PX    640
 
+/* Side panel, right of the canvas. */
+#define PANEL_X      710
+#define SWATCH_Y     60
+#define SWATCH_PX    140
+
 /* Cursor border thickness in pixels (the asm uses 1 display unit). */
 #define CURSOR_PX    3
 

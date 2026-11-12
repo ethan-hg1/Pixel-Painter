@@ -2,10 +2,12 @@
  * Exits 0 when every check passes. Add one test function per module and
  * call it from main(). Required list: BUILD_INSTRUCTIONS.txt 12.5. */
 #include <stdio.h>
+#include <string.h>
 
 #include "app.h"
 #include "config.h"
 #include "grid.h"
+#include "hexparse.h"
 
 static int g_checks = 0;
 static int g_failures = 0;
@@ -97,6 +99,94 @@ static void test_paint(void)
     CHECK(app.grid[3 * GRID_STRIDE + 5] == 0x00FF5733u);
 }
 
+/* 12.5: parse_hex valid / invalid list, plus edge cases. */
+static void test_parse_hex(void)
+{
+    uint32_t c = 0x00ABCDEFu;
+
+    CHECK(parse_hex("#FF5733", &c) == 1 && c == 0x00FF5733u);
+    CHECK(parse_hex("ff5733", &c) == 1 && c == 0x00FF5733u);
+    CHECK(parse_hex("#ff5733", &c) == 1 && c == 0x00FF5733u);
+    CHECK(parse_hex("#00FF00", &c) == 1 && c == 0x0000FF00u);
+    CHECK(parse_hex("000000", &c) == 1 && c == 0x00000000u);
+    CHECK(parse_hex("#aBcDeF", &c) == 1 && c == 0x00ABCDEFu);
+
+    c = 0x00123456u;
+    CHECK(parse_hex("", &c) == 0);
+    CHECK(parse_hex("#", &c) == 0);
+    CHECK(parse_hex("FF573", &c) == 0);
+    CHECK(parse_hex("FF57333", &c) == 0);
+    CHECK(parse_hex("#GG0000", &c) == 0);
+    CHECK(parse_hex("12 456", &c) == 0);
+    CHECK(parse_hex("#12345G", &c) == 0);
+    CHECK(parse_hex("##FF573", &c) == 0);
+    CHECK(parse_hex("FF5733#", &c) == 0);
+    CHECK(parse_hex("0xFF57", &c) == 0);
+    CHECK(c == 0x00123456u);  /* invalid input leaves *out unchanged */
+
+    CHECK(hex_digit_value('0') == 0 && hex_digit_value('9') == 9);
+    CHECK(hex_digit_value('a') == 10 && hex_digit_value('F') == 15);
+    CHECK(hex_digit_value('g') == -1 && hex_digit_value('/') == -1);
+    CHECK(hex_digit_value(':') == -1 && hex_digit_value('@') == -1);
+    CHECK(hex_digit_value('`') == -1 && hex_digit_value('G') == -1);
+}
+
+static void type_string(AppState *app, const char *s)
+{
+    for (; *s; s++) {
+        entry_add_char(app, (unsigned char)*s);
+    }
+}
+
+/* Step 2: color entry mode (13: "#00FF00" -> green, "#12345G" -> invalid,
+ * Esc cancels, Backspace works, buffer bounded). */
+static void test_color_entry(void)
+{
+    AppState app;
+    app_init(&app);
+    CHECK(app.entry_mode == 0 && app.status[0] == '\0');
+
+    entry_start(&app);
+    CHECK(app.entry_mode == 1 && app.entry_len == 0);
+    type_string(&app, "#00FF00");
+    CHECK(strcmp(app.entry_buf, "#00FF00") == 0);
+    CHECK(entry_confirm(&app) == 1);
+    CHECK(app.color == 0x0000FF00u && app.entry_mode == 0);
+
+    entry_start(&app);
+    type_string(&app, "#12345G");
+    CHECK(entry_confirm(&app) == 0);
+    CHECK(app.color == 0x0000FF00u);              /* unchanged */
+    CHECK(strcmp(app.status, "Invalid color") == 0);
+    CHECK(app.entry_mode == 0);
+
+    entry_start(&app);                            /* clears the message */
+    CHECK(app.status[0] == '\0');
+    type_string(&app, "ff0000");
+    entry_cancel(&app);
+    CHECK(app.color == 0x0000FF00u && app.entry_mode == 0);
+
+    entry_start(&app);
+    type_string(&app, "#FF00001");                /* 8th char dropped */
+    CHECK(app.entry_len == ENTRY_MAX_LEN);
+    CHECK(strcmp(app.entry_buf, "#FF0000") == 0);
+    entry_backspace(&app);
+    entry_backspace(&app);
+    CHECK(strcmp(app.entry_buf, "#FF00") == 0);
+    type_string(&app, "FF");
+    CHECK(entry_confirm(&app) == 1 && app.color == 0x00FF00FFu);
+
+    entry_start(&app);
+    entry_backspace(&app);                        /* on empty: no-op */
+    CHECK(app.entry_len == 0);
+    entry_add_char(&app, 0x1B);                   /* control chars ignored */
+    entry_add_char(&app, '\n');
+    entry_add_char(&app, 0x7F);
+    CHECK(app.entry_len == 0);
+    CHECK(entry_confirm(&app) == 0);              /* empty is invalid */
+    CHECK(app.color == 0x00FF00FFu);
+}
+
 int main(void)
 {
     test_config();
@@ -104,6 +194,8 @@ int main(void)
     test_cell_layout();
     test_luminance();
     test_paint();
+    test_parse_hex();
+    test_color_entry();
 
     printf("%d checks, %d failed\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
