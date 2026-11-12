@@ -1,0 +1,20 @@
+# Build output
+build/
+c/build/
+cmake-build-*/
+
+# RARS jar (download it, do not commit it)
+*.jar
+
+# Exported images in the repo root (keep tests/golden and docs/evidence)
+/*.png
+/*.bmp
+out.png
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*~
