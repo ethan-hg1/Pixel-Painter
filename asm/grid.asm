@@ -6,11 +6,7 @@
 
 .include "constants.asm"
 
-        .data
-        .align  2
-        .globl  grid, n
-grid:   .space  1024                    # MAX_N * MAX_N words = 256 * 4 bytes
-n:      .word   START_N                 # mirror of s1
+# grid and n are declared in main.asm (memory map, section 9).
 
         .text
         .globl  grid_get, grid_set, grid_clear

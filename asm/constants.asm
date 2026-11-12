@@ -24,10 +24,18 @@
 .eqv KBD_CTRL       0xFFFF0000  # receiver control, bit 0 = ready
 .eqv KBD_DATA       0xFFFF0004  # received byte
 
+# asm display layout (section 7.5)
+.eqv PREVIEW_X      100         # preview swatch: 24 x 24 units incl. border
+.eqv PREVIEW_Y      2
+.eqv PREVIEW_SIZE   24
+.eqv PREVIEW_INNER  22          # PREVIEW_SIZE - 2 (1-unit border each side)
+.eqv FRAME_COLOR    0x00E0E0E0  # swatch border (same as the C frame)
+
 # Syscall numbers (section 8)
 .eqv SYS_PRINT_INT      1
 .eqv SYS_PRINT_STRING   4
 .eqv SYS_EXIT           10
+.eqv SYS_EXIT2          93          # exit with code a0
 .eqv SYS_PRINT_CHAR     11
 .eqv SYS_SLEEP          32
 .eqv SYS_PRINT_INT_HEX  34

@@ -46,13 +46,14 @@ void entry_start(AppState *app)
     set_status(app, "");
 }
 
-void entry_add_char(AppState *app, int c)
+int entry_add_char(AppState *app, int c)
 {
     if (c < 0x20 || c > 0x7E || app->entry_len >= ENTRY_MAX_LEN) {
-        return;
+        return 0;
     }
     app->entry_buf[app->entry_len++] = (char)c;
     app->entry_buf[app->entry_len] = '\0';
+    return 1;
 }
 
 void entry_backspace(AppState *app)
