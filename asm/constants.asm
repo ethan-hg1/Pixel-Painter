@@ -15,6 +15,7 @@
 .eqv CANVAS_UNITS   96          # canvas area, 96 x 96 units
 .eqv DISPLAY_W      128         # display width in units
 .eqv DISPLAY_H      128
+.eqv DISPLAY_ROW_BYTES 512     # DISPLAY_W * 4 (RARS .eqv has no arithmetic)
 .eqv DISPLAY_BASE   0x10040000
 .eqv KBD_CTRL       0xFFFF0000  # receiver control, bit 0 = ready
 .eqv KBD_DATA       0xFFFF0004  # received byte

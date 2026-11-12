@@ -15,6 +15,7 @@
 #define CANVAS_UNITS   96            /* asm canvas area, 96 x 96 units */
 #define DISPLAY_W      128           /* asm display width in units */
 #define DISPLAY_H      128
+#define DISPLAY_ROW_BYTES 512        /* DISPLAY_W * 4; asm .eqv cannot multiply */
 
 /* asm-only addresses, kept here so the two files stay in sync. */
 #define DISPLAY_BASE   0x10040000u
