@@ -9,7 +9,7 @@ jobs:
     name: C build, unit tests, replay
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install raylib Linux dependencies
         run: |
@@ -60,9 +60,9 @@ jobs:
       RARS_URL: https://github.com/TheThirdOne/rars/releases/download/v1.6/rars1_6.jar
       RARS_SHA256: 780f730eb457b1ba609e968accc2c8b77d8f92c3d9dbf30cc7fdb3cfb14e8c24
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
