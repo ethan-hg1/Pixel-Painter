@@ -11,7 +11,32 @@ do_paint():                          # key w
     return 1                         # caller redraws the cell and the cursor
 ```
 
-TODO (later steps): do_erase, set_color, do_clear, do_resize, do_undo,
+```
+entry_start():                       # key t
+    entry_mode = 1 ; entry_len = 0 ; entry_buf = "" ; status = ""
+entry_add_char(c):                   # any typed key while entry_mode
+    if 0x20 <= c <= 0x7E and entry_len < ENTRY_MAX_LEN (7):
+        entry_buf[entry_len++] = c ; entry_buf[entry_len] = 0
+entry_backspace():                   # Backspace (asm: 0x08 or 0x7F)
+    if entry_len > 0: entry_buf[--entry_len] = 0
+entry_cancel():                      # Esc (asm: 0x1B)
+    entry_mode = 0                   # color unchanged
+entry_confirm():                     # Enter (asm: 0x0A or 0x0D)
+    entry_mode = 0
+    if parse_hex(entry_buf) ok: set_color(value)
+    else: status = "Invalid color"   # asm: print to the console
+
+parse_hex(s):
+    if s[0] == '#': skip it
+    value = 0 ; digits = 0
+    for each remaining char ch:
+        d = hex_digit_value(ch)      # 0-9, a-f, A-F -> 0..15, else -1
+        if d < 0 or digits == 6: invalid
+        value = (value << 4) | d ; digits += 1
+    valid only if digits == 6
+```
+
+TODO (later steps): do_erase, do_clear, do_resize, do_undo,
 do_redo, palette_add, palette_pick, do_save.
 
 ## Register allocation
