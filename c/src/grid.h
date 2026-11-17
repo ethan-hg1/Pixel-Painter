@@ -28,6 +28,14 @@ void     grid_clear(uint32_t *grid);
 int      grid_cell_size(int canvas, int n);
 int      grid_offset(int canvas, int n);
 
+/* Mouse hit test (step 3). The canvas is a canvas x canvas square whose
+ * top-left corner is (origin_x, origin_y) in pixels; cells are laid out
+ * with grid_cell_size / grid_offset. Returns 1 and sets *row, *col when
+ * (px, py) is inside a cell. Returns 0 (and leaves *row, *col alone) for
+ * points in the centering margin or outside the canvas. */
+int      grid_cell_at(int px, int py, int origin_x, int origin_y, int canvas,
+                      int n, int *row, int *col);
+
 /* Section 7.4 b: Y = (77*R + 150*G + 29*B) >> 8, a Q8 fixed-point
  * weighted sum. Returns 0..255. */
 int      luminance_q8(uint32_t color);

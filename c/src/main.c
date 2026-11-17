@@ -27,14 +27,56 @@ static void handle_input(AppState *app)
         return;
     }
 
+    /* Arrows repeat while held; paint and erase do not (section 3). */
+    if (IsKeyPressed(KEY_UP) || IsKeyPressedRepeat(KEY_UP)) {
+        move_cursor(app, -1, 0);
+    }
+    if (IsKeyPressed(KEY_DOWN) || IsKeyPressedRepeat(KEY_DOWN)) {
+        move_cursor(app, 1, 0);
+    }
+    if (IsKeyPressed(KEY_LEFT) || IsKeyPressedRepeat(KEY_LEFT)) {
+        move_cursor(app, 0, -1);
+    }
+    if (IsKeyPressed(KEY_RIGHT) || IsKeyPressedRepeat(KEY_RIGHT)) {
+        move_cursor(app, 0, 1);
+    }
     if (IsKeyPressed(KEY_W)) {
         do_paint(app);
+    }
+    if (IsKeyPressed(KEY_E)) {
+        do_erase(app);
     }
     if (IsKeyPressed(KEY_T)) {
         entry_start(app);
         while (GetCharPressed() != 0) {
             /* drop the 't' itself so it is not typed into the buffer */
         }
+    }
+}
+
+/* Mouse (section 2.2, 2.3): a press on a cell moves the cursor there, then
+ * left paints or right erases. Presses outside the cells do nothing. */
+static void handle_mouse(AppState *app)
+{
+    int left = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+    int right = IsMouseButtonPressed(MOUSE_BUTTON_RIGHT);
+    Vector2 p;
+    int row, col;
+
+    if (!left && !right) {
+        return;
+    }
+    p = GetMousePosition();
+    if (!grid_cell_at((int)p.x, (int)p.y, CANVAS_X, CANVAS_Y, CANVAS_PX,
+                      app->n, &row, &col)) {
+        return;
+    }
+    app->cur_row = row;
+    app->cur_col = col;
+    if (left) {
+        do_paint(app);
+    } else {
+        do_erase(app);
     }
 }
 
@@ -74,6 +116,9 @@ int main(int argc, char **argv)
 
     while (!WindowShouldClose()) {
         handle_input(&app);
+        if (!app.entry_mode) {
+            handle_mouse(&app);
+        }
 
         BeginDrawing();
         render_frame(&app);

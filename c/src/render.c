@@ -78,7 +78,7 @@ static void draw_preview(const AppState *app)
 static void draw_status(const AppState *app)
 {
     char line[96];
-    snprintf(line, sizeof line, "%dx%d   cursor (%d, %d)   w: paint   t: color",
+    snprintf(line, sizeof line, "%dx%d   cursor (%d, %d)   arrows: move   w: paint   e: erase   t: color",
              app->n, app->n, app->cur_row, app->cur_col);
     DrawText(line, CANVAS_X, WINDOW_H - FONT_PX - 10, FONT_PX, rgb(TEXT_COLOR));
 }
