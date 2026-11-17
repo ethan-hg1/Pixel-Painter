@@ -11,6 +11,7 @@
         .text
         .globl  grid_get, grid_set, grid_clear
         .globl  grid_cell_size, grid_offset, luminance_q8, cursor_color
+        .globl  grid_cell_at
 
 # grid_get(a0 = row, a1 = col) -> a0 = color
 # Reads one cell: s0 + ((row << 4) + col) << 2.
@@ -65,6 +66,74 @@ grid_offset:
         mul     t1, a1, t0              # t1 = n * cell
         sub     t0, a0, t1              # t0 = canvas - n * cell
         srli    a0, t0, 1               # / 2
+        ret
+
+# axis_index(a0 = p, a1 = origin, a2 = canvas, a3 = n) -> a0 = index or -1
+# One axis of grid_cell_at: maps pixel p to a cell index 0..n-1, or -1 for
+# the centering margin and outside the canvas. Cell and offset are computed
+# as in grid_cell_size / grid_offset (section 7.4 a).
+# Uses: t0-t3.  Calls: none (leaf).  Saves: nothing.
+axis_index:
+        divu    t0, a2, a3              # t0 = cell
+        mul     t1, a3, t0              # t1 = span = n * cell
+        sub     t3, a2, t1
+        srli    t3, t3, 1               # t3 = offset
+        sub     t2, a0, a1              # p - origin
+        sub     t2, t2, t3              # rel = p - origin - offset
+        bltz    t2, axis_index_miss
+        bge     t2, t1, axis_index_miss
+        divu    a0, t2, t0              # index = rel / cell
+        ret
+axis_index_miss:
+        li      a0, -1
+        ret
+
+# grid_cell_at(a0 = px, a1 = py, a2 = origin_x, a3 = origin_y,
+#              a4 = canvas, a5 = n) -> a0 = 1 inside (a1 = row, a2 = col),
+#              0 outside (a1, a2 unchanged)
+# Mouse hit test, the asm form of the C grid_cell_at (whose row and col
+# pointers become the a1/a2 return values). Not used by RARS (no mouse);
+# kept for the function-by-function mapping and tested in test_main.asm.
+# Uses: a0-a3.  Calls: axis_index.  Saves: ra, s8-s11.
+grid_cell_at:
+        addi    sp, sp, -32
+        sw      ra, 28(sp)
+        sw      s8, 24(sp)
+        sw      s9, 20(sp)
+        sw      s10, 16(sp)
+        sw      s11, 12(sp)
+        mv      s8, a0                  # s8 = px
+        mv      s9, a2                  # s9 = origin_x
+        mv      s10, a4                 # s10 = canvas
+        mv      s11, a5                 # s11 = n
+
+        mv      a0, a1                  # row from py
+        mv      a1, a3                  # origin_y
+        mv      a2, s10
+        mv      a3, s11
+        jal     axis_index
+        bltz    a0, grid_cell_at_miss
+        sw      a0, 8(sp)               # keep row across the next call
+
+        mv      a0, s8                  # col from px
+        mv      a1, s9
+        mv      a2, s10
+        mv      a3, s11
+        jal     axis_index
+        bltz    a0, grid_cell_at_miss
+        mv      a2, a0                  # a2 = col
+        lw      a1, 8(sp)               # a1 = row
+        li      a0, 1
+        j       grid_cell_at_done
+grid_cell_at_miss:
+        li      a0, 0
+grid_cell_at_done:
+        lw      s11, 12(sp)
+        lw      s10, 16(sp)
+        lw      s9, 20(sp)
+        lw      s8, 24(sp)
+        lw      ra, 28(sp)
+        addi    sp, sp, 32
         ret
 
 # luminance_q8(a0 = color) -> a0 = Y in 0..255

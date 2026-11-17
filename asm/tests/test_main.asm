@@ -97,6 +97,31 @@ t_bad:          .asciz "#12345G"
 t_cancel:       .asciz "ff0000"
 t_long:         .asciz "#FF00001"
 t_ff:           .asciz "FF"
+l_move:         .asciz "move_cursor"
+l_erase:        .asciz "do_erase"
+l_hit:          .asciz "grid_cell_at"
+        .align  2
+hit_row:        .word   0
+hit_col:        .word   0
+# grid_cell_at table: px, py, n, ok, row, col. Canvas at (30, 30), 640 px.
+# n = 0 ends the table. Row/col are only checked when ok = 1.
+hit_cases:
+        .word   30, 30, 8, 1, 0, 0      # top-left px
+        .word   109, 109, 8, 1, 0, 0    # last px of cell (0,0)
+        .word   110, 110, 8, 1, 1, 1
+        .word   669, 669, 8, 1, 7, 7    # bottom-right px
+        .word   670, 500, 8, 0, 0, 0    # right of the canvas
+        .word   500, 670, 8, 0, 0, 0    # below the canvas
+        .word   29, 500, 8, 0, 0, 0     # left of the canvas
+        .word   669, 630, 16, 1, 15, 15
+        .word   670, 40, 16, 0, 0, 0
+        .word   30, 30, 11, 0, 0, 0     # n = 11: margin (offset 1)
+        .word   30, 500, 11, 0, 0, 0
+        .word   31, 31, 11, 1, 0, 0
+        .word   89, 147, 11, 1, 2, 1
+        .word   669, 300, 11, 0, 0, 0   # 638 px used: 669 is outside
+        .word   668, 31, 11, 1, 0, 10
+        .word   0, 0, 0, 0, 0, 0        # end
 
         .text
         .globl  main
@@ -394,6 +419,98 @@ cell_done:
         li      a3, 0
         jal     check
 
+        # ---- move_cursor: clamp at every edge, n = 8 then n = 16 ---------
+        li      s1, START_N
+        la      t0, n
+        sw      s1, 0(t0)
+        li      s3, 0
+        li      s4, 0
+        jal     move_cursor_checks      # n = 8 (last = 7)
+        li      s1, MAX_N
+        la      t0, n
+        sw      s1, 0(t0)
+        li      s3, 0
+        li      s4, 0
+        jal     move_cursor_checks      # n = 16 (last = 15)
+        li      s1, START_N             # back to 8 for the erase tests
+        la      t0, n
+        sw      s1, 0(t0)
+
+        # ---- do_erase: no-op on EMPTY, then paint and erase --------------
+        li      s3, 0
+        li      s4, 0
+        li      a0, 0
+        li      a1, 0
+        li      a2, EMPTY
+        jal     grid_set                # (0,0) = EMPTY
+        jal     do_erase
+        li      a1, 0                   # already EMPTY: no change
+        la      a2, l_erase
+        li      a3, 0
+        jal     check
+        li      s2, 0x00ABCDEF
+        jal     do_paint
+        li      a1, 1
+        la      a2, l_erase
+        li      a3, 0
+        jal     check
+        jal     do_erase
+        li      a1, 1                   # painted cell: erased
+        la      a2, l_erase
+        li      a3, 0
+        jal     check
+        li      a0, 0
+        li      a1, 0
+        jal     grid_get
+        li      a1, EMPTY
+        la      a2, l_erase
+        li      a3, 0
+        jal     check
+        mv      a0, s2
+        li      a1, 0x00ABCDEF          # erase keeps the current color
+        la      a2, l_erase
+        li      a3, 0
+        jal     check
+
+        # ---- grid_cell_at: table-driven hit test (origin 30, 30; 640 px) -
+        la      s8, hit_cases
+hit_loop:
+        lw      t0, 8(s8)               # n = 0 ends the table
+        beqz    t0, hit_done
+        lw      a0, 0(s8)
+        lw      a1, 4(s8)
+        li      a2, 30
+        li      a3, 30
+        li      a4, 640
+        lw      a5, 8(s8)
+        jal     grid_cell_at
+        la      t0, hit_row
+        sw      a1, 0(t0)
+        la      t0, hit_col
+        sw      a2, 0(t0)
+        lw      a1, 12(s8)              # want ok
+        la      a2, l_hit
+        li      a3, 0
+        jal     check
+        lw      t0, 12(s8)
+        beqz    t0, hit_next            # outside: row/col not checked
+        la      t0, hit_row
+        lw      a0, 0(t0)
+        lw      a1, 16(s8)
+        la      a2, l_hit
+        li      a3, 0
+        jal     check
+        la      t0, hit_col
+        lw      a0, 0(t0)
+        lw      a1, 20(s8)
+        la      a2, l_hit
+        li      a3, 0
+        jal     check
+hit_next:
+        addi    s8, s8, 24
+        j       hit_loop
+hit_done:
+
         # ---- summary: "<checks> checks, <failed> failed", exit(failed) ----
         mv      a0, s10
         li      a7, SYS_PRINT_INT
@@ -410,4 +527,95 @@ cell_done:
         mv      a0, s11
         li      a7, SYS_EXIT2
         ecall
+
+# move_cursor_checks()
+# The clamp table for the current n (= s1, last = s1 - 1), starting from
+# (0, 0). Each step: (drow, dcol) -> want moved, want row, want col.
+# Uses: a0-a5, t0-t1.  Calls: move_cursor, check.  Saves: ra, s8.
+move_cursor_checks:
+        addi    sp, sp, -16
+        sw      ra, 12(sp)
+        sw      s8, 8(sp)
+        addi    s8, s1, -1              # s8 = last index (kept across calls)
+        # (drow, dcol, moved, row, col) rows, with "last" = s8
+        li      a0, -1
+        li      a1, 0
+        li      a2, 0
+        li      a3, 0
+        li      a4, 0
+        jal     move_step
+        li      a0, 0
+        li      a1, -1
+        li      a2, 0
+        li      a3, 0
+        li      a4, 0
+        jal     move_step
+        li      a0, 1
+        li      a1, 0
+        li      a2, 1
+        li      a3, 1
+        li      a4, 0
+        jal     move_step
+        li      a0, 0
+        li      a1, 1
+        li      a2, 1
+        li      a3, 1
+        li      a4, 1
+        jal     move_step
+        li      a0, 100
+        li      a1, 100
+        li      a2, 1
+        mv      a3, s8
+        mv      a4, s8
+        jal     move_step
+        li      a0, 1
+        li      a1, 0
+        li      a2, 0
+        mv      a3, s8
+        mv      a4, s8
+        jal     move_step
+        li      a0, 0
+        li      a1, 1
+        li      a2, 0
+        mv      a3, s8
+        mv      a4, s8
+        jal     move_step
+        li      a0, -100
+        li      a1, -100
+        li      a2, 1
+        li      a3, 0
+        li      a4, 0
+        jal     move_step
+        lw      ra, 12(sp)
+        lw      s8, 8(sp)
+        addi    sp, sp, 16
+        ret
+
+# move_step(a0 = drow, a1 = dcol, a2 = want moved, a3 = want row,
+#           a4 = want col): calls move_cursor and checks the result.
+# Uses: a0-a5, t0-t1.  Calls: move_cursor, check.  Saves: ra (wants kept on the stack).
+move_step:
+        addi    sp, sp, -32
+        sw      ra, 28(sp)
+        sw      a2, 24(sp)              # want moved
+        sw      a3, 20(sp)              # want row
+        sw      a4, 16(sp)              # want col
+        jal     move_cursor
+        lw      a1, 24(sp)
+        la      a2, l_move
+        li      a3, 0
+        jal     check                   # moved flag
+        mv      a0, s3
+        lw      a1, 20(sp)
+        la      a2, l_move
+        li      a3, 0
+        jal     check                   # row
+        mv      a0, s4
+        lw      a1, 16(sp)
+        la      a2, l_move
+        li      a3, 0
+        jal     check                   # col
+        lw      ra, 28(sp)
+        addi    sp, sp, 32
+        ret
 

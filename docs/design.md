@@ -12,6 +12,31 @@ do_paint():                          # key w
 ```
 
 ```
+do_erase():                          # key e
+    if grid[cur_row][cur_col] == EMPTY: return 0
+    grid[cur_row][cur_col] = EMPTY
+    return 1                         # same shared code path as do_paint
+
+move_cursor(drow, dcol):             # keys i (up) j (left) k (down) l (right)
+    cur_row = clamp(cur_row + drow, 0, n-1)   # no wrap, no out-of-bounds
+    cur_col = clamp(cur_col + dcol, 0, n-1)
+    return 1 if the cursor moved else 0
+    # handle_key redraws the old cell first (erases the old border), then
+    # moves, then draws the cursor in its new cell
+```
+
+```
+grid_cell_at(px, py, ox, oy, canvas, n):   # mouse hit test (C only in use)
+    row = axis_index(py, oy, canvas, n) ; col = axis_index(px, ox, canvas, n)
+    return 0 if either is -1, else 1 with (row, col)
+axis_index(p, origin, canvas, n):
+    cell = canvas / n ; off = (canvas - n*cell) / 2
+    rel = p - origin - off
+    return -1 if rel < 0 or rel >= n*cell else rel / cell
+    # asm: row and col come back in a1/a2 (the C pointers become returns)
+```
+
+```
 entry_start():                       # key t
     entry_mode = 1 ; entry_len = 0 ; entry_buf = "" ; status = ""
 entry_add_char(c):                   # any typed key while entry_mode
@@ -61,7 +86,12 @@ Globals (set once in `main`, never repurposed):
 |----------|------|---------|----------|-------|------------------------|
 | `main` | - | never returns | all a, t (never returns) | app_init, draw_background, draw_canvas, draw_cursor, read_key, handle_key | - |
 | `app_init` | - | - | a0, a1, t0-t2 | grid_clear, grid_cell_size, grid_offset | **writes s0-s7** |
-| `do_paint` | - | a0 = 1 changed / 0 same | a0-a2, t0 | grid_get, grid_set | reads s0, s2, s3, s4 |
+| `set_cursor_cell` | a0 = color | a0 = 1 changed / 0 same | a0-a2, t0 (saves s8) | grid_get, grid_set | reads s0, s3, s4 |
+| `do_paint` | - | a0 = 1 changed / 0 same | a0-a2, t0 | set_cursor_cell (tail jump) | reads s2 (+ set_cursor_cell's) |
+| `do_erase` | - | a0 = 1 changed / 0 same | a0-a2, t0 | set_cursor_cell (tail jump) | reads s3, s4 (+ set_cursor_cell's) |
+| `move_cursor` | a0 = drow, a1 = dcol | a0 = 1 moved / 0 | a0, a1, t0-t2 | - | reads s1; **writes s3, s4** |
+| `axis_index` | a0 = p, a1 = origin, a2 = canvas, a3 = n | a0 = index / -1 | t0-t3 | - | - |
+| `grid_cell_at` | a0 = px, a1 = py, a2 = ox, a3 = oy, a4 = canvas, a5 = n | a0 = 1 inside (a1 = row, a2 = col) / 0 | a0-a3 (saves s8-s11) | axis_index | - |
 | `grid_get` | a0 = row, a1 = col | a0 = color | t0 | - | reads s0 |
 | `grid_set` | a0 = row, a1 = col, a2 = color | - | t0 | - | reads s0 |
 | `grid_clear` | - | - | t0-t2 | - | reads s0 |
@@ -84,7 +114,7 @@ Globals (set once in `main`, never repurposed):
 | `hex_digit_value` | a0 = char | a0 = 0..15 or -1 | t0 | - | - |
 | `parse_hex` | a0 = string address | a0 = 1 ok / 0, a1 = color | a0, a1, t0 | hex_digit_value | - |
 | `read_key` | - | a0 = byte, or -1 if none | t0 | - | - |
-| `handle_key` | a0 = key byte | a0 = 1 quit / 0 | a0-a7, t0-t4 | handle_entry_key, do_paint, draw_cell, draw_cursor, entry_start | reads s3, s4, entry_mode |
+| `handle_key` | a0 = key byte | a0 = 1 quit / 0 | a0-a7, t0-t4 (saves s8, s9) | handle_entry_key, do_paint, do_erase, move_cursor, draw_cell, draw_cursor, entry_start | reads s3, s4, entry_mode |
 | `handle_entry_key` | a0 = key byte | - | a0-a7, t0-t4 | entry_confirm, entry_cancel, entry_backspace, entry_add_char, draw_preview, print_current_color | - |
 | `print_current_color` | - | - | a0, a7, t0 | print_color | reads s2 |
 | `print_color` | a0 = color | - | a0, a7, t0 | - | - |

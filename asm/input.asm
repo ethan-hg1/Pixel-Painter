@@ -34,16 +34,20 @@ read_key_none:
 # handle_key(a0 = key byte) -> a0 = 1 to quit, else 0
 # In color entry mode every key goes to handle_entry_key (no shortcuts).
 # Otherwise folds A-Z to lowercase and dispatches:
+#   i / j / k / l  move up / left / down / right (clamped, section 3)
 #   w  paint the cursor cell, redraw it and the cursor
+#   e  erase the cursor cell, redraw it and the cursor
 #   t  start color entry, print the prompt
 #   q  quit
-# Other keys are ignored. More keys are added in later build steps.
-# Uses: a0-a7, t0-t4.  Calls: handle_entry_key, do_paint, draw_cell,
-# draw_cursor, entry_start.  Saves: ra.
+# Other keys are ignored.
+# Uses: a0-a7, t0-t4.  Calls: handle_entry_key, do_paint, do_erase,
+# move_cursor, draw_cell, draw_cursor, entry_start.  Saves: ra, s8, s9.
 # Reads globals: s3, s4 (and the callees' globals).
 handle_key:
         addi    sp, sp, -16
         sw      ra, 12(sp)
+        sw      s8, 8(sp)
+        sw      s9, 4(sp)
 
         la      t0, entry_mode
         lw      t0, 0(t0)
@@ -60,6 +64,16 @@ handle_key_fold:
 handle_key_dispatch:
         li      t0, 'w'
         beq     a0, t0, handle_key_paint
+        li      t0, 'e'
+        beq     a0, t0, handle_key_erase
+        li      t0, 'i'
+        beq     a0, t0, handle_key_up
+        li      t0, 'k'
+        beq     a0, t0, handle_key_down
+        li      t0, 'j'
+        beq     a0, t0, handle_key_left
+        li      t0, 'l'
+        beq     a0, t0, handle_key_right
         li      t0, 't'
         beq     a0, t0, handle_key_entry
         li      t0, 'q'
@@ -72,6 +86,43 @@ handle_key_paint:
         mv      a0, s3
         mv      a1, s4
         jal     draw_cell
+        jal     draw_cursor
+        j       handle_key_done
+
+handle_key_erase:
+        jal     do_erase
+        beqz    a0, handle_key_done
+        mv      a0, s3
+        mv      a1, s4
+        jal     draw_cell
+        jal     draw_cursor
+        j       handle_key_done
+
+handle_key_up:
+        li      s8, -1
+        li      s9, 0
+        j       handle_key_move
+handle_key_down:
+        li      s8, 1
+        li      s9, 0
+        j       handle_key_move
+handle_key_left:
+        li      s8, 0
+        li      s9, -1
+        j       handle_key_move
+handle_key_right:
+        li      s8, 0
+        li      s9, 1
+
+# Redraw the old cell first (that erases the old cursor border), then move,
+# then draw the cursor in its new cell. Draws even when clamped: harmless.
+handle_key_move:
+        mv      a0, s3
+        mv      a1, s4
+        jal     draw_cell
+        mv      a0, s8
+        mv      a1, s9
+        jal     move_cursor
         jal     draw_cursor
         j       handle_key_done
 
@@ -88,6 +139,8 @@ handle_key_quit:
 handle_key_done:
         li      a0, 0
 handle_key_ret:
+        lw      s9, 4(sp)
+        lw      s8, 8(sp)
         lw      ra, 12(sp)
         addi    sp, sp, 16
         ret
