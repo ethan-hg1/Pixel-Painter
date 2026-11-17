@@ -45,6 +45,43 @@ int do_erase(AppState *app)
     return set_cursor_cell(app, EMPTY);
 }
 
+int do_clear(AppState *app)
+{
+    int changed = 0;
+
+    for (int row = 0; row < app->n; row++) {
+        for (int col = 0; col < app->n; col++) {
+            if (grid_get(app->grid, row, col) != EMPTY) {
+                grid_set(app->grid, row, col, EMPTY);
+                changed = 1;
+            }
+        }
+    }
+    return changed;
+}
+
+int do_resize(AppState *app, int delta)
+{
+    int next = app->n + delta;
+
+    if (next == app->n || next < MIN_N || next > MAX_N) {
+        return 0;
+    }
+    if (next < app->n) {
+        /* cells outside the new size become EMPTY (undo can restore them) */
+        for (int row = 0; row < app->n; row++) {
+            for (int col = 0; col < app->n; col++) {
+                if (row >= next || col >= next) {
+                    grid_set(app->grid, row, col, EMPTY);
+                }
+            }
+        }
+    }
+    app->n = next;
+    move_cursor(app, 0, 0);     /* clamps the cursor into the new grid */
+    return 1;
+}
+
 static int clamp(int v, int lo, int hi)
 {
     return v < lo ? lo : (v > hi ? hi : v);

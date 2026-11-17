@@ -27,6 +27,22 @@ static void handle_input(AppState *app)
         return;
     }
 
+    /* ctrl (Cmd on macOS) combos: clear and resize (sections 2.7, 2.8).
+     * They return early so ctrl+arrow, ctrl+w etc. do nothing else. */
+    if (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL) ||
+        IsKeyDown(KEY_LEFT_SUPER) || IsKeyDown(KEY_RIGHT_SUPER)) {
+        if (IsKeyPressed(KEY_DELETE)) {
+            do_clear(app);
+        }
+        if (IsKeyPressed(KEY_EQUAL) || IsKeyPressed(KEY_KP_ADD)) {
+            do_resize(app, RESIZE_STEP);
+        }
+        if (IsKeyPressed(KEY_MINUS) || IsKeyPressed(KEY_KP_SUBTRACT)) {
+            do_resize(app, -RESIZE_STEP);
+        }
+        return;
+    }
+
     /* Arrows repeat while held; paint and erase do not (section 3). */
     if (IsKeyPressed(KEY_UP) || IsKeyPressedRepeat(KEY_UP)) {
         move_cursor(app, -1, 0);
