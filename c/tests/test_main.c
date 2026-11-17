@@ -262,6 +262,60 @@ static void test_cell_hit(void)
     CHECK(col == 10);                                 /* last used px */
 }
 
+/* Step 4: clear, and resize with its limits, shrink clearing and cursor clamp. */
+static void test_clear_and_resize(void)
+{
+    AppState app;
+    app_init(&app);
+    CHECK(do_clear(&app) == 0);                  /* already empty: no change */
+
+    app.color = 0x00112233u;
+    do_paint(&app);
+    app.cur_row = 3;
+    app.cur_col = 4;
+    do_paint(&app);
+    CHECK(do_clear(&app) == 1);
+    CHECK(grid_get(app.grid, 0, 0) == EMPTY && grid_get(app.grid, 3, 4) == EMPTY);
+    CHECK(do_clear(&app) == 0);
+
+    /* limits: 8 can't shrink, 16 can't grow, steps stay within 8..16 */
+    app_init(&app);
+    CHECK(do_resize(&app, -RESIZE_STEP) == 0 && app.n == MIN_N);
+    CHECK(do_resize(&app, RESIZE_STEP) == 1 && app.n == MIN_N + RESIZE_STEP);
+    while (app.n < MAX_N) {
+        CHECK(do_resize(&app, RESIZE_STEP) == 1);
+    }
+    CHECK(app.n == MAX_N);
+    CHECK(do_resize(&app, RESIZE_STEP) == 0 && app.n == MAX_N);
+    while (app.n > MIN_N) {
+        CHECK(do_resize(&app, -RESIZE_STEP) == 1);
+    }
+    CHECK(app.n == MIN_N);
+
+    /* growing keeps colors; shrinking clears what falls outside */
+    app_init(&app);
+    app.n = MAX_N;                               /* via the limit, as in main */
+    app.color = 0x00ABCDEFu;
+    app.cur_row = 15; app.cur_col = 15; do_paint(&app);
+    app.cur_row = 0;  app.cur_col = 0;  do_paint(&app);
+    app.cur_row = 15; app.cur_col = 15;
+    CHECK(do_resize(&app, -RESIZE_STEP) == 1);   /* 16 -> 15 */
+    CHECK(app.n == 15);
+    CHECK(grid_get(app.grid, 15, 15) == EMPTY);  /* outside: cleared */
+    CHECK(grid_get(app.grid, 0, 0) == 0x00ABCDEFu);  /* inside: kept */
+    CHECK(app.cur_row == 14 && app.cur_col == 14);   /* cursor clamped */
+    CHECK(do_resize(&app, RESIZE_STEP) == 1);    /* grow back: 15 -> 16 */
+    CHECK(grid_get(app.grid, 0, 0) == 0x00ABCDEFu);
+    CHECK(grid_get(app.grid, 15, 15) == EMPTY);  /* cleared stays cleared */
+    CHECK(app.cur_row == 14 && app.cur_col == 14);
+
+    /* the cursor is only clamped, not moved, when it is already inside */
+    app_init(&app);
+    app.cur_row = 2; app.cur_col = 5;
+    CHECK(do_resize(&app, RESIZE_STEP) == 1);
+    CHECK(app.cur_row == 2 && app.cur_col == 5);
+}
+
 int main(void)
 {
     test_config();
@@ -273,6 +327,7 @@ int main(void)
     test_color_entry();
     test_erase_and_move();
     test_cell_hit();
+    test_clear_and_resize();
 
     printf("%d checks, %d failed\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;

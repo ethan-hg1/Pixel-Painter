@@ -33,6 +33,16 @@ int  do_paint(AppState *app);
  * Returns 1 if the cell changed, 0 if it was already EMPTY. */
 int  do_erase(AppState *app);
 
+/* Sets every cell to EMPTY (ctrl+delete). Returns 1 if any cell changed,
+ * 0 if the canvas was already empty. */
+int  do_clear(AppState *app);
+
+/* Changes n by delta (+RESIZE_STEP grow, -RESIZE_STEP shrink). Returns 1 if
+ * n changed. Returns 0 and does nothing if the new size would leave
+ * [MIN_N, MAX_N]. Shrinking sets cells outside the new size to EMPTY, and
+ * the cursor is clamped into the new grid. */
+int  do_resize(AppState *app, int delta);
+
 /* Moves the cursor by (drow, dcol), clamped to 0..n-1 (no wrap).
  * Returns 1 if the cursor moved, 0 if it was already at that edge. */
 int  move_cursor(AppState *app, int drow, int dcol);
