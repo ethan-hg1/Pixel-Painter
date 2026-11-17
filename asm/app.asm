@@ -7,7 +7,7 @@
 # State (entry_mode, entry_len, entry_buf, n) is declared in main.asm.
 
         .text
-        .globl  app_init, do_paint, set_color
+        .globl  app_init, do_paint, do_erase, move_cursor, set_color
         .globl  entry_start, entry_add_char, entry_backspace
         .globl  entry_cancel, entry_confirm
 
@@ -50,29 +50,82 @@ app_init:
         addi    sp, sp, 16
         ret
 
-# do_paint() -> a0 = 1 if the cell changed, 0 if it already had the color
-# Paints the cursor cell (s3, s4) with the current color s2.
-# Uses: a0-a2.  Calls: grid_get, grid_set.  Saves: ra.
-# Reads globals: s0, s2, s3, s4.
-do_paint:
+# set_cursor_cell(a0 = color) -> a0 = 1 if the cell changed, 0 if it already
+# had that color. Shared by do_paint and do_erase (like the C version).
+# Uses: a0-a2, t0 (+ callees').  Calls: grid_get, grid_set.  Saves: ra, s8.
+# Reads globals: s0, s3, s4.
+set_cursor_cell:
         addi    sp, sp, -16
         sw      ra, 12(sp)
+        sw      s8, 8(sp)
+        mv      s8, a0                  # s8 = wanted color
 
         mv      a0, s3
         mv      a1, s4
         jal     grid_get
-        beq     a0, s2, do_paint_same
+        beq     a0, s8, set_cursor_same
         mv      a0, s3
         mv      a1, s4
-        mv      a2, s2
+        mv      a2, s8
         jal     grid_set
         li      a0, 1
-        j       do_paint_done
-do_paint_same:
+        j       set_cursor_done
+set_cursor_same:
         li      a0, 0
-do_paint_done:
+set_cursor_done:
+        lw      s8, 8(sp)
         lw      ra, 12(sp)
         addi    sp, sp, 16
+        ret
+
+# do_paint() -> a0 = 1 if the cell changed, 0 if it already had the color
+# Paints the cursor cell (s3, s4) with the current color s2.
+# Uses: a0-a2.  Calls: set_cursor_cell (tail jump).  Saves: nothing.
+# Reads globals: s2 (and set_cursor_cell's).
+do_paint:
+        mv      a0, s2
+        j       set_cursor_cell
+
+# do_erase() -> a0 = 1 if the cell changed, 0 if it was already EMPTY
+# Sets the cursor cell (s3, s4) to EMPTY (key e).
+# Uses: a0.  Calls: set_cursor_cell (tail jump).  Saves: nothing.
+do_erase:
+        li      a0, EMPTY
+        j       set_cursor_cell
+
+# move_cursor(a0 = drow, a1 = dcol) -> a0 = 1 if the cursor moved, else 0
+# Moves (s3, s4) by the deltas, clamped to 0..n-1 (no wrap, section 2.8 rule).
+# WRITES GLOBALS: s3, s4 (this is its job).
+# Uses: a0, a1, t0-t2.  Calls: none (leaf).  Saves: nothing.
+# Reads globals: s1.
+move_cursor:
+        add     t0, s3, a0              # new row, unclamped
+        bgez    t0, move_row_lo_ok
+        li      t0, 0
+move_row_lo_ok:
+        addi    t1, s1, -1              # last index
+        ble     t0, t1, move_row_hi_ok
+        mv      t0, t1
+move_row_hi_ok:
+        li      t2, 0                   # t2 = moved flag
+        beq     t0, s3, move_row_set
+        li      t2, 1
+move_row_set:
+        mv      s3, t0
+
+        add     t0, s4, a1              # new col, unclamped
+        bgez    t0, move_col_lo_ok
+        li      t0, 0
+move_col_lo_ok:
+        addi    t1, s1, -1
+        ble     t0, t1, move_col_hi_ok
+        mv      t0, t1
+move_col_hi_ok:
+        beq     t0, s4, move_col_set
+        li      t2, 1
+move_col_set:
+        mv      s4, t0
+        mv      a0, t2
         ret
 
 # set_color(a0 = color)
