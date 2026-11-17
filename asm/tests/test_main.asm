@@ -100,6 +100,8 @@ t_ff:           .asciz "FF"
 l_move:         .asciz "move_cursor"
 l_erase:        .asciz "do_erase"
 l_hit:          .asciz "grid_cell_at"
+l_clear:        .asciz "do_clear"
+l_resize:       .asciz "do_resize"
         .align  2
 hit_row:        .word   0
 hit_col:        .word   0
@@ -511,6 +513,9 @@ hit_next:
         j       hit_loop
 hit_done:
 
+        # ---- clear and resize (step 4) -----------------------------------
+        jal     clear_resize_checks
+
         # ---- summary: "<checks> checks, <failed> failed", exit(failed) ----
         mv      a0, s10
         li      a7, SYS_PRINT_INT
@@ -619,3 +624,195 @@ move_step:
         addi    sp, sp, 32
         ret
 
+
+# clear_resize_checks()
+# Step 4 cases, mirroring test_clear_and_resize in c/tests/test_main.c.
+# Starts from app_init. Uses: a0-a3, t0-t1, s8 (saved).
+# Calls: app_init, do_clear, do_paint, do_resize, grid_get, grid_set, check.
+clear_resize_checks:
+        addi    sp, sp, -16
+        sw      ra, 12(sp)
+        sw      s8, 8(sp)
+
+        # ---- do_clear: no-op on an empty canvas, then clears a paint -----
+        jal     app_init
+        jal     do_clear
+        li      a1, 0
+        la      a2, l_clear
+        li      a3, 0
+        jal     check
+        li      s2, 0x00112233
+        li      s3, 3
+        li      s4, 4
+        jal     do_paint
+        jal     do_clear
+        li      a1, 1
+        la      a2, l_clear
+        li      a3, 0
+        jal     check
+        li      a0, 3
+        li      a1, 4
+        jal     grid_get
+        li      a1, EMPTY
+        la      a2, l_clear
+        li      a3, 0
+        jal     check
+        jal     do_clear
+        li      a1, 0
+        la      a2, l_clear
+        li      a3, 0
+        jal     check
+
+        # ---- limits: 8 can't shrink, 16 can't grow, steps stay in range ---
+        jal     app_init
+        li      a0, -RESIZE_STEP
+        jal     do_resize
+        li      a1, 0
+        la      a2, l_resize
+        li      a3, 0
+        jal     check
+        mv      a0, s1
+        li      a1, MIN_N
+        la      a2, l_resize
+        li      a3, 0
+        jal     check
+        li      a0, RESIZE_STEP
+        jal     do_resize
+        li      a1, 1
+        la      a2, l_resize
+        li      a3, 0
+        jal     check
+        mv      a0, s1
+        li      a1, 9                   # MIN_N + RESIZE_STEP (.eqv has no math)
+        la      a2, l_resize
+        li      a3, 0
+        jal     check
+rc_grow:
+        li      t0, MAX_N
+        bge     s1, t0, rc_grown
+        li      a0, RESIZE_STEP
+        jal     do_resize
+        li      a1, 1
+        la      a2, l_resize
+        li      a3, 0
+        jal     check
+        j       rc_grow
+rc_grown:
+        mv      a0, s1
+        li      a1, MAX_N
+        la      a2, l_resize
+        li      a3, 0
+        jal     check
+        li      a0, RESIZE_STEP
+        jal     do_resize
+        li      a1, 0                   # past 16: nothing
+        la      a2, l_resize
+        li      a3, 0
+        jal     check
+rc_shrink:
+        li      t0, MIN_N
+        ble     s1, t0, rc_shrunk
+        li      a0, -RESIZE_STEP
+        jal     do_resize
+        li      a1, 1
+        la      a2, l_resize
+        li      a3, 0
+        jal     check
+        j       rc_shrink
+rc_shrunk:
+        mv      a0, s1
+        li      a1, MIN_N
+        la      a2, l_resize
+        li      a3, 0
+        jal     check
+
+        # ---- cell size and offset follow n (n = 9: cell 10, offset 3) -----
+        jal     app_init
+        li      a0, RESIZE_STEP
+        jal     do_resize
+        mv      a0, s5
+        li      a1, 10
+        la      a2, l_resize
+        li      a3, 0
+        jal     check
+        mv      a0, s6
+        li      a1, 3
+        la      a2, l_resize
+        li      a3, 0
+        jal     check
+
+        # ---- shrink clears outside, grow keeps colors, cursor clamps ------
+        jal     app_init
+        li      s8, 0
+rc_to16:
+        li      t0, MAX_N
+        bge     s1, t0, rc_at16
+        li      a0, RESIZE_STEP
+        jal     do_resize
+        j       rc_to16
+rc_at16:
+        li      s2, 0x00ABCDEF
+        li      s3, 15
+        li      s4, 15
+        jal     do_paint
+        li      s3, 0
+        li      s4, 0
+        jal     do_paint
+        li      s3, 15
+        li      s4, 15
+        li      a0, -RESIZE_STEP
+        jal     do_resize
+        li      a1, 1
+        la      a2, l_resize
+        li      a3, 0
+        jal     check
+        mv      a0, s1
+        li      a1, 15                  # MAX_N - RESIZE_STEP
+        la      a2, l_resize
+        li      a3, 0
+        jal     check
+        li      a0, 15
+        li      a1, 15
+        jal     grid_get
+        li      a1, EMPTY               # outside: cleared
+        la      a2, l_resize
+        li      a3, 0
+        jal     check
+        li      a0, 0
+        li      a1, 0
+        jal     grid_get
+        li      a1, 0x00ABCDEF          # inside: kept
+        la      a2, l_resize
+        li      a3, 0
+        jal     check
+        mv      a0, s3
+        li      a1, 14
+        la      a2, l_resize
+        li      a3, 0
+        jal     check
+        mv      a0, s4
+        li      a1, 14
+        la      a2, l_resize
+        li      a3, 0
+        jal     check
+        li      a0, RESIZE_STEP
+        jal     do_resize               # grow back
+        li      a0, 0
+        li      a1, 0
+        jal     grid_get
+        li      a1, 0x00ABCDEF
+        la      a2, l_resize
+        li      a3, 0
+        jal     check
+        li      a0, 15
+        li      a1, 15
+        jal     grid_get
+        li      a1, EMPTY               # stays cleared
+        la      a2, l_resize
+        li      a3, 0
+        jal     check
+
+        lw      s8, 8(sp)
+        lw      ra, 12(sp)
+        addi    sp, sp, 16
+        ret
