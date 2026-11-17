@@ -24,13 +24,41 @@ void app_init(AppState *app)
     app->status[0] = '\0';
 }
 
-int do_paint(AppState *app)
+/* Shared by paint and erase: writes color to the cursor cell unless it
+ * already holds it. */
+static int set_cursor_cell(AppState *app, uint32_t color)
 {
-    if (grid_get(app->grid, app->cur_row, app->cur_col) == app->color) {
+    if (grid_get(app->grid, app->cur_row, app->cur_col) == color) {
         return 0;
     }
-    grid_set(app->grid, app->cur_row, app->cur_col, app->color);
+    grid_set(app->grid, app->cur_row, app->cur_col, color);
     return 1;
+}
+
+int do_paint(AppState *app)
+{
+    return set_cursor_cell(app, app->color);
+}
+
+int do_erase(AppState *app)
+{
+    return set_cursor_cell(app, EMPTY);
+}
+
+static int clamp(int v, int lo, int hi)
+{
+    return v < lo ? lo : (v > hi ? hi : v);
+}
+
+int move_cursor(AppState *app, int drow, int dcol)
+{
+    int row = clamp(app->cur_row + drow, 0, app->n - 1);
+    int col = clamp(app->cur_col + dcol, 0, app->n - 1);
+    int moved = (row != app->cur_row || col != app->cur_col);
+
+    app->cur_row = row;
+    app->cur_col = col;
+    return moved;
 }
 
 void set_color(AppState *app, uint32_t color)

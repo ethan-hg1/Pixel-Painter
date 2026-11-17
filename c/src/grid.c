@@ -28,6 +28,32 @@ int grid_offset(int canvas, int n)
     return (canvas - n * grid_cell_size(canvas, n)) / 2;
 }
 
+/* One axis of grid_cell_at: maps pixel p to an index 0..n-1, or -1. */
+static int axis_index(int p, int origin, int canvas, int n)
+{
+    int cell = grid_cell_size(canvas, n);
+    int rel = p - origin - grid_offset(canvas, n);
+
+    if (rel < 0 || rel >= n * cell) {
+        return -1;
+    }
+    return rel / cell;
+}
+
+int grid_cell_at(int px, int py, int origin_x, int origin_y, int canvas,
+                 int n, int *row, int *col)
+{
+    int r = axis_index(py, origin_y, canvas, n);
+    int c = axis_index(px, origin_x, canvas, n);
+
+    if (r < 0 || c < 0) {
+        return 0;
+    }
+    *row = r;
+    *col = c;
+    return 1;
+}
+
 int luminance_q8(uint32_t color)
 {
     uint32_t r = (color >> 16) & 0xFF;

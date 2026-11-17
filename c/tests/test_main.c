@@ -189,6 +189,79 @@ static void test_color_entry(void)
     CHECK(app.color == 0x00FF00FFu);
 }
 
+/* Step 3: erase, cursor clamping at all four edges, mouse hit testing. */
+static void test_erase_and_move(void)
+{
+    static const int sizes[] = { MIN_N, MAX_N };
+    for (int s = 0; s < 2; s++) {
+        AppState app;
+        int n = sizes[s];
+        app_init(&app);
+        app.n = n;
+        int last = n - 1;
+
+        /* clamp at each edge; no wrap */
+        CHECK(move_cursor(&app, -1, 0) == 0 && app.cur_row == 0);
+        CHECK(move_cursor(&app, 0, -1) == 0 && app.cur_col == 0);
+        CHECK(move_cursor(&app, 1, 0) == 1 && app.cur_row == 1);
+        CHECK(move_cursor(&app, 0, 1) == 1 && app.cur_col == 1);
+        CHECK(move_cursor(&app, 100, 100) == 1 && app.cur_row == last);
+        CHECK(app.cur_col == last);
+        CHECK(move_cursor(&app, 1, 0) == 0 && app.cur_row == last);
+        CHECK(move_cursor(&app, 0, 1) == 0 && app.cur_col == last);
+        CHECK(move_cursor(&app, -100, -100) == 1);
+        CHECK(app.cur_row == 0 && app.cur_col == 0);
+    }
+
+    AppState app;
+    app_init(&app);
+    app.color = 0x00ABCDEFu;
+    CHECK(do_erase(&app) == 0 && grid_get(app.grid, 0, 0) == EMPTY);  /* no-op */
+    CHECK(do_paint(&app) == 1 && grid_get(app.grid, 0, 0) == 0x00ABCDEFu);
+    CHECK(do_erase(&app) == 1 && grid_get(app.grid, 0, 0) == EMPTY);
+    CHECK(do_erase(&app) == 0);                       /* already EMPTY */
+    CHECK(app.color == 0x00ABCDEFu);                  /* erase keeps color */
+}
+
+/* Step 3: pixel -> cell. Canvas at (30, 30), 640 px square. */
+static void test_cell_hit(void)
+{
+    int row = -7, col = -7;
+
+    /* n = 8: cell 80, no margin */
+    CHECK(grid_cell_at(30, 30, 30, 30, 640, 8, &row, &col) == 1);
+    CHECK(row == 0 && col == 0);
+    CHECK(grid_cell_at(109, 109, 30, 30, 640, 8, &row, &col) == 1);
+    CHECK(row == 0 && col == 0);                      /* last px of cell */
+    CHECK(grid_cell_at(110, 110, 30, 30, 640, 8, &row, &col) == 1);
+    CHECK(row == 1 && col == 1);
+    CHECK(grid_cell_at(669, 669, 30, 30, 640, 8, &row, &col) == 1);
+    CHECK(row == 7 && col == 7);                      /* bottom-right px */
+    CHECK(grid_cell_at(670, 500, 30, 30, 640, 8, &row, &col) == 0);
+    CHECK(grid_cell_at(500, 670, 30, 30, 640, 8, &row, &col) == 0);
+    CHECK(grid_cell_at(29, 500, 30, 30, 640, 8, &row, &col) == 0);
+    CHECK(grid_cell_at(500, 29, 30, 30, 640, 8, &row, &col) == 0);
+
+    /* n = 16: cell 40 */
+    CHECK(grid_cell_at(30 + 40 * 15 + 39, 30 + 40 * 15, 30, 30, 640, 16,
+                       &row, &col) == 1);
+    CHECK(row == 15 && col == 15);
+    CHECK(grid_cell_at(30 + 40 * 16, 40, 30, 30, 640, 16, &row, &col) == 0);
+
+    /* n = 11: cell 58, 638 px used, offset 1 -> margin on the left and top */
+    row = col = -7;
+    CHECK(grid_cell_at(30, 30, 30, 30, 640, 11, &row, &col) == 0);  /* margin */
+    CHECK(grid_cell_at(30, 500, 30, 30, 640, 11, &row, &col) == 0);
+    CHECK(row == -7 && col == -7);                    /* untouched */
+    CHECK(grid_cell_at(31, 31, 30, 30, 640, 11, &row, &col) == 1);
+    CHECK(row == 0 && col == 0);
+    CHECK(grid_cell_at(31 + 58, 31 + 58 * 2, 30, 30, 640, 11, &row, &col) == 1);
+    CHECK(row == 2 && col == 1);
+    CHECK(grid_cell_at(31 + 11 * 58, 300, 30, 30, 640, 11, &row, &col) == 0);
+    CHECK(grid_cell_at(31 + 11 * 58 - 1, 300, 30, 30, 640, 11, &row, &col) == 1);
+    CHECK(col == 10);                                 /* last used px */
+}
+
 int main(void)
 {
     test_config();
@@ -198,6 +271,8 @@ int main(void)
     test_paint();
     test_parse_hex();
     test_color_entry();
+    test_erase_and_move();
+    test_cell_hit();
 
     printf("%d checks, %d failed\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;

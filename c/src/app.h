@@ -29,6 +29,14 @@ void app_init(AppState *app);
  * Returns 1 if the cell changed, 0 if it already had that color. */
 int  do_paint(AppState *app);
 
+/* Sets the cell under the cursor to EMPTY (key e, right click).
+ * Returns 1 if the cell changed, 0 if it was already EMPTY. */
+int  do_erase(AppState *app);
+
+/* Moves the cursor by (drow, dcol), clamped to 0..n-1 (no wrap).
+ * Returns 1 if the cursor moved, 0 if it was already at that edge. */
+int  move_cursor(AppState *app, int drow, int dcol);
+
 /* Sets the current color (0x00RRGGBB). */
 void set_color(AppState *app, uint32_t color);
 
