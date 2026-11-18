@@ -8,6 +8,7 @@
 
 #include "config.h"
 #include "grid.h"
+#include "history.h"
 
 #define STATUS_LEN 64
 
@@ -16,6 +17,7 @@ typedef struct {
     int      n;                  /* current grid size */
     int      cur_row, cur_col;
     uint32_t color;              /* current color 0x00RRGGBB */
+    History  hist;               /* undo/redo, section 10 */
     int      entry_mode;         /* 1 while typing a hex code */
     char     entry_buf[ENTRY_MAX_LEN + 1];  /* typed chars + '\0' */
     int      entry_len;
@@ -42,6 +44,12 @@ int  do_clear(AppState *app);
  * [MIN_N, MAX_N]. Shrinking sets cells outside the new size to EMPTY, and
  * the cursor is clamped into the new grid. */
 int  do_resize(AppState *app, int delta);
+
+/* Undo (ctrl+z) and redo (ctrl+shift+z) the last recorded action. Return 1
+ * if something was undone or redone, 0 if there was nothing to do. They
+ * change the grid and n but never push a new record. */
+int  do_undo(AppState *app);
+int  do_redo(AppState *app);
 
 /* Moves the cursor by (drow, dcol), clamped to 0..n-1 (no wrap).
  * Returns 1 if the cursor moved, 0 if it was already at that edge. */

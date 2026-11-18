@@ -61,8 +61,7 @@ parse_hex(s):
     valid only if digits == 6
 ```
 
-TODO (later steps): do_erase, do_clear, do_resize, do_undo,
-do_redo, palette_add, palette_pick, do_save.
+TODO (later steps): palette_add, palette_pick, do_save.
 
 ## Register allocation
 
@@ -146,4 +145,50 @@ palette, history and file buffer as they land.
 
 ## Undo record layout
 
-TODO: section 10.
+Section 10 layout, the same in C (`history.h`) and asm (`history.asm`).
+Each record is 32 bytes; each one has a 1 KB snapshot slot at the same index.
+
+```
++0 type  (1 PAINT, 2 CLEAR, 3 RESIZE)   +4 row   +8 col
++12 old_color   +16 new_color   +20 old_n   +24 new_n   +28 unused
+hist_start, hist_len, hist_pos       slot(i) = (hist_start + i) & 63
+```
+
+Each do_* action records BEFORE it changes the grid, and it records nothing
+when it is a no-op (see `docs/decisions.md` #16):
+
+```
+do_paint / do_erase(): if cell already holds the color: return 0
+    push(PAINT row, col, old, new); apply_paint(row, col, new); return 1
+
+do_clear():            if canvas (n x n) is all EMPTY: return 0
+    push(CLEAR, old_n = new_n = n)   # push copies the grid into the snapshot
+    apply_clear(); return 1
+
+do_resize(delta):      if next == n or next outside [MIN_N, MAX_N]: return 0
+    push(RESIZE, old_n = n, new_n = next)   # snapshot before the change
+    apply_resize(next); return 1
+
+push(r, grid):         # drops the redo tail; a full ring drops the oldest
+    len = pos
+    if len == 64: start = (start+1) & 63; len--; pos--
+    s = slot(pos); rec[s] = r
+    if r is CLEAR or RESIZE: snap[s] = grid       # 256 words
+    pos++; len = pos
+
+do_undo():             if pos == 0: return 0
+    pos--; s = slot(pos)
+    PAINT:  grid[row][col] = old_color
+    CLEAR, RESIZE: grid = snap[s]                 # whole 256-word grid
+    RESIZE: n = old_n; move_cursor(0, 0)          # clamp
+    return 1
+
+do_redo():             if pos == len: return 0
+    s = slot(pos); pos++
+    PAINT:  grid[row][col] = new_color            # apply_* only, no push
+    CLEAR:  apply_clear(); RESIZE: apply_resize(new_n)
+    return 1
+```
+
+Key bindings: C `ctrl+z` undo, `ctrl+shift+z` redo (shift checked first).
+asm `z` undo, `y` redo (decision in section 2.9 of the spec).
