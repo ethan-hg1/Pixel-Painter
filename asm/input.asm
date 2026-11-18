@@ -39,11 +39,14 @@ read_key_none:
 #   e  erase the cursor cell, redraw it and the cursor
 #   c  clear the canvas, redraw everything
 #   + / = grow, - shrink (RESIZE_STEP, within 8..16), redraw everything
+#   z  undo (also 0x1A, ctrl+z if it arrives), redraw everything
+#   y  redo, redraw everything
 #   t  start color entry, print the prompt
 #   q  quit
 # Other keys are ignored.
 # Uses: a0-a7, t0-t4.  Calls: handle_entry_key, do_paint, do_erase, do_clear,
-# do_resize, move_cursor, draw_cell, draw_cursor, redraw_all, entry_start.
+# do_resize, do_undo, do_redo, move_cursor, draw_cell, draw_cursor,
+# redraw_all, entry_start.
 # Saves: ra, s8, s9.
 # Reads globals: s3, s4 (and the callees' globals).
 handle_key:
@@ -77,6 +80,12 @@ handle_key_dispatch:
         beq     a0, t0, handle_key_grow
         li      t0, '-'
         beq     a0, t0, handle_key_shrink
+        li      t0, 'z'
+        beq     a0, t0, handle_key_undo
+        li      t0, 0x1A                # ctrl+z, when the terminal sends it
+        beq     a0, t0, handle_key_undo
+        li      t0, 'y'
+        beq     a0, t0, handle_key_redo
         li      t0, 'i'
         beq     a0, t0, handle_key_up
         li      t0, 'k'
@@ -125,6 +134,18 @@ handle_key_grow:
 handle_key_shrink:
         li      a0, -RESIZE_STEP
         jal     do_resize
+        beqz    a0, handle_key_done
+        jal     redraw_all
+        j       handle_key_done
+
+handle_key_undo:
+        jal     do_undo
+        beqz    a0, handle_key_done
+        jal     redraw_all
+        j       handle_key_done
+
+handle_key_redo:
+        jal     do_redo
         beqz    a0, handle_key_done
         jal     redraw_all
         j       handle_key_done
