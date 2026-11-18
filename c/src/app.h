@@ -9,6 +9,7 @@
 #include "config.h"
 #include "grid.h"
 #include "history.h"
+#include "palette.h"
 
 #define STATUS_LEN 64
 
@@ -17,6 +18,8 @@ typedef struct {
     int      n;                  /* current grid size */
     int      cur_row, cur_col;
     uint32_t color;              /* current color 0x00RRGGBB */
+    uint32_t palette[PALETTE_SLOTS];  /* saved colors, EMPTY = unused */
+    int      palette_next;       /* slot the next save overwrites (FIFO) */
     History  hist;               /* undo/redo, section 10 */
     int      entry_mode;         /* 1 while typing a hex code */
     char     entry_buf[ENTRY_MAX_LEN + 1];  /* typed chars + '\0' */
@@ -50,6 +53,14 @@ int  do_resize(AppState *app, int delta);
  * change the grid and n but never push a new record. */
 int  do_undo(AppState *app);
 int  do_redo(AppState *app);
+
+/* Saves the current color into the palette (key p). Returns 1 if it was
+ * added, 0 if it is already saved. Palette changes are not undoable. */
+int  palette_add(AppState *app);
+
+/* Makes palette slot (0..7) the current color (keys 1..8, click). Returns 1
+ * if the color changed, 0 if the slot is empty or already the current color. */
+int  palette_pick(AppState *app, int slot);
 
 /* Moves the cursor by (drow, dcol), clamped to 0..n-1 (no wrap).
  * Returns 1 if the cursor moved, 0 if it was already at that edge. */

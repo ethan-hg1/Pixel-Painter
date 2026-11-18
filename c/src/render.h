@@ -19,6 +19,15 @@
 #define SWATCH_Y     60
 #define SWATCH_PX    140
 
+/* Saved-color swatches under the preview: two columns (slot k in column
+ * k & 1, row k >> 1), like the asm layout. Also the hit area for clicks. */
+#define PALETTE_TITLE_Y  360
+#define PALETTE_X        PANEL_X
+#define PALETTE_Y        390
+#define PALETTE_SWATCH   50
+#define PALETTE_PITCH_X  80
+#define PALETTE_PITCH_Y  60
+
 /* Cursor border thickness in pixels (the asm uses 1 display unit). */
 #define CURSOR_PX    3
 

@@ -18,6 +18,7 @@ void app_init(AppState *app)
     app->cur_row = 0;
     app->cur_col = 0;
     app->color = 0x00000000u;
+    palette_init(app->palette, &app->palette_next);
     history_clear(&app->hist);
     app->entry_mode = 0;
     app->entry_len = 0;
@@ -100,7 +101,12 @@ static int set_cursor_cell(AppState *app, uint32_t color)
 
 int do_paint(AppState *app)
 {
-    return set_cursor_cell(app, app->color);
+    int changed = set_cursor_cell(app, app->color);
+
+    /* 2.6: the first time a color paints, it is saved automatically.
+     * palette_insert ignores colors that are already saved. */
+    palette_insert(app->palette, &app->palette_next, app->color);
+    return changed;
 }
 
 int do_erase(AppState *app)
@@ -198,6 +204,26 @@ int move_cursor(AppState *app, int drow, int dcol)
     app->cur_row = row;
     app->cur_col = col;
     return moved;
+}
+
+int palette_add(AppState *app)
+{
+    return palette_insert(app->palette, &app->palette_next, app->color);
+}
+
+int palette_pick(AppState *app, int slot)
+{
+    uint32_t color;
+
+    if (slot < 0 || slot >= PALETTE_SLOTS || app->palette[slot] == EMPTY) {
+        return 0;
+    }
+    color = app->palette[slot];
+    if (color == app->color) {
+        return 0;
+    }
+    set_color(app, color);
+    return 1;
 }
 
 void set_color(AppState *app, uint32_t color)

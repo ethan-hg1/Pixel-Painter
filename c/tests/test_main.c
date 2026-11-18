@@ -8,6 +8,7 @@
 #include "config.h"
 #include "grid.h"
 #include "hexparse.h"
+#include "palette.h"
 
 static int g_checks = 0;
 static int g_failures = 0;
@@ -455,6 +456,94 @@ static void test_undo_redo(void)
     CHECK(grid_get(app.grid, 0, 0) == 1u);      /* oldest was dropped, so it stayed */
 }
 
+/* 12.5 palette: no duplicates, FIFO replace when full, empty slot pick is a
+ * no-op. Also: paint auto-saves, p saves, and palette changes skip undo. */
+static void test_palette(void)
+{
+    uint32_t slots[PALETTE_SLOTS];
+    int next;
+    AppState app;
+
+    palette_init(slots, &next);
+    CHECK(next == 0);
+    for (int i = 0; i < PALETTE_SLOTS; i++) {
+        CHECK(slots[i] == EMPTY);
+    }
+
+    /* saves go to slots 0, 1, 2 in order */
+    CHECK(palette_insert(slots, &next, 0x00AA0000u) == 1);
+    CHECK(palette_insert(slots, &next, 0x0000BB00u) == 1);
+    CHECK(palette_insert(slots, &next, 0x000000CCu) == 1);
+    CHECK(next == 3);
+    CHECK(palette_find(slots, 0x0000BB00u) == 1);
+    CHECK(palette_find(slots, 0x00123456u) == -1);
+
+    /* no duplicates, EMPTY never saved, and next does not move */
+    CHECK(palette_insert(slots, &next, 0x00AA0000u) == 0);
+    CHECK(palette_insert(slots, &next, EMPTY) == 0);
+    CHECK(next == 3);
+
+    /* fill the last five slots with distinct colors (black counts) */
+    CHECK(palette_insert(slots, &next, 0x00000000u) == 1);
+    for (uint32_t c = 0x00010101u; c <= 0x00040404u; c += 0x00010101u) {
+        CHECK(palette_insert(slots, &next, c) == 1);
+    }
+    CHECK(next == 0);                            /* 8 saves wrap the ring */
+
+    /* 9th distinct color overwrites the oldest (slot 0), then slot 1 next */
+    CHECK(palette_insert(slots, &next, 0x00FFFFFFu) == 1);
+    CHECK(slots[0] == 0x00FFFFFFu);
+    CHECK(palette_find(slots, 0x00AA0000u) == -1);
+    CHECK(next == 1);
+    CHECK(palette_insert(slots, &next, 0x00FE0000u) == 1);
+    CHECK(slots[1] == 0x00FE0000u);
+    CHECK(palette_find(slots, 0x0000BB00u) == -1);
+    CHECK(palette_find(slots, 0x000000CCu) == 2);   /* still there */
+
+    /* swatch hit test: 2 columns at x 710 and 790, rows 60 apart */
+    {
+        int slot = -1;
+        CHECK(palette_slot_at(710, 390, 710, 390, 50, 80, 60, &slot) == 1);
+        CHECK(slot == 0);
+        CHECK(palette_slot_at(800, 400, 710, 390, 50, 80, 60, &slot) == 1);
+        CHECK(slot == 1);
+        CHECK(palette_slot_at(800, 580, 710, 390, 50, 80, 60, &slot) == 1);
+        CHECK(slot == 7);
+        CHECK(palette_slot_at(760, 400, 710, 390, 50, 80, 60, &slot) == 0); /* gap */
+        CHECK(palette_slot_at(720, 440, 710, 390, 50, 80, 60, &slot) == 0); /* gap */
+        CHECK(palette_slot_at(709, 400, 710, 390, 50, 80, 60, &slot) == 0); /* left */
+        CHECK(palette_slot_at(720, 620, 710, 390, 50, 80, 60, &slot) == 0); /* below */
+        CHECK(palette_slot_at(870, 400, 710, 390, 50, 80, 60, &slot) == 0); /* right */
+    }
+
+    /* app level: paint auto-saves, p saves, empty pick no-op, pick sets color */
+    app_init(&app);
+    CHECK(palette_pick(&app, 0) == 0);          /* empty slot does nothing */
+    CHECK(app.color == 0x00000000u);
+    set_color(&app, 0x00112233u);
+    CHECK(palette_add(&app) == 1);              /* p saves */
+    CHECK(palette_add(&app) == 0);              /* already saved */
+    set_color(&app, 0x00445566u);
+    CHECK(do_paint(&app) == 1);                 /* first paint auto-saves */
+    CHECK(palette_find(app.palette, 0x00445566u) == 1);
+    CHECK(do_paint(&app) == 0);                 /* same cell, same color */
+    CHECK(palette_find(app.palette, 0x00445566u) == 1);  /* no duplicate */
+    CHECK(palette_pick(&app, 0) == 1);
+    CHECK(app.color == 0x00112233u);
+    CHECK(palette_pick(&app, 0) == 0);          /* already current */
+    CHECK(palette_pick(&app, 5) == 0);          /* empty slot */
+    CHECK(app.color == 0x00112233u);
+    CHECK(palette_pick(&app, 8) == 0);          /* out of range */
+    CHECK(app.color == 0x00112233u);
+
+    /* palette is not part of undo: undo the paint, the swatch stays */
+    CHECK(do_undo(&app) == 1);
+    CHECK(grid_get(app.grid, 0, 0) == EMPTY);
+    CHECK(palette_find(app.palette, 0x00445566u) == 1);
+    CHECK(do_redo(&app) == 1);
+    CHECK(palette_find(app.palette, 0x00445566u) == 1);
+}
+
 int main(void)
 {
     test_config();
@@ -468,6 +557,7 @@ int main(void)
     test_cell_hit();
     test_clear_and_resize();
     test_undo_redo();
+    test_palette();
 
     printf("%d checks, %d failed\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
