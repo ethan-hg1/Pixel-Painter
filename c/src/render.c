@@ -9,6 +9,7 @@
 #define DIM_COLOR    0x9A9A9Au
 #define ERROR_COLOR  0xFF6060u
 #define FONT_PX      20
+#define EMPTY_OUTLINE 0x505050u
 
 static Color rgb(uint32_t c)
 {
@@ -75,6 +76,30 @@ static void draw_preview(const AppState *app)
     }
 }
 
+/* Eight swatches (empty slots as a dark gray outline), a frame around the
+ * current color if it is saved, and the keys under them. */
+static void draw_palette(const AppState *app)
+{
+    DrawText("Saved colors", PANEL_X, PALETTE_TITLE_Y, FONT_PX, rgb(TEXT_COLOR));
+    for (int k = 0; k < PALETTE_SLOTS; k++) {
+        int x = PALETTE_X + (k & 1) * PALETTE_PITCH_X;
+        int y = PALETTE_Y + (k >> 1) * PALETTE_PITCH_Y;
+        Rectangle r = { (float)x, (float)y, PALETTE_SWATCH, PALETTE_SWATCH };
+        uint32_t c = app->palette[k];
+
+        if (c == EMPTY) {
+            DrawRectangleLinesEx(r, 2, rgb(EMPTY_OUTLINE));
+            continue;
+        }
+        DrawRectangleRec(r, rgb(c));
+        if (c == app->color) {
+            DrawRectangleLinesEx(r, 3, rgb(TEXT_COLOR));
+        }
+    }
+    DrawText("p: save   1-8: pick", PANEL_X, PALETTE_Y + 4 * PALETTE_PITCH_Y - 4,
+             10, rgb(DIM_COLOR));
+}
+
 static void draw_status(const AppState *app)
 {
     char line[96];
@@ -89,5 +114,6 @@ void render_frame(const AppState *app)
     draw_canvas(app);
     draw_cursor(app);
     draw_preview(app);
+    draw_palette(app);
     draw_status(app);
 }

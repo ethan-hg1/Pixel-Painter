@@ -70,6 +70,15 @@ static void handle_input(AppState *app)
     if (IsKeyPressed(KEY_E)) {
         do_erase(app);
     }
+    /* saved colors (2.6): p saves, 1..8 pick a slot (keypad digits too) */
+    if (IsKeyPressed(KEY_P)) {
+        palette_add(app);
+    }
+    for (int k = 0; k < PALETTE_SLOTS; k++) {
+        if (IsKeyPressed(KEY_ONE + k) || IsKeyPressed(KEY_KP_1 + k)) {
+            palette_pick(app, k);
+        }
+    }
     if (IsKeyPressed(KEY_T)) {
         entry_start(app);
         while (GetCharPressed() != 0) {
@@ -78,19 +87,28 @@ static void handle_input(AppState *app)
     }
 }
 
-/* Mouse (section 2.2, 2.3): a press on a cell moves the cursor there, then
- * left paints or right erases. Presses outside the cells do nothing. */
+/* Mouse (section 2.2, 2.3, 2.6): a press on a cell moves the cursor there,
+ * then left paints or right erases. A left click on a saved-color swatch
+ * picks it (2.6). Every other press does nothing. */
 static void handle_mouse(AppState *app)
 {
     int left = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
     int right = IsMouseButtonPressed(MOUSE_BUTTON_RIGHT);
     Vector2 p;
-    int row, col;
+    int row, col, slot;
 
     if (!left && !right) {
         return;
     }
     p = GetMousePosition();
+    if (palette_slot_at((int)p.x, (int)p.y, PALETTE_X, PALETTE_Y,
+                        PALETTE_SWATCH, PALETTE_PITCH_X, PALETTE_PITCH_Y,
+                        &slot)) {
+        if (left) {
+            palette_pick(app, slot);
+        }
+        return;
+    }
     if (!grid_cell_at((int)p.x, (int)p.y, CANVAS_X, CANVAS_Y, CANVAS_PX,
                       app->n, &row, &col)) {
         return;
