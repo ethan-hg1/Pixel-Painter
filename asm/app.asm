@@ -7,7 +7,8 @@
 # State (entry_mode, entry_len, entry_buf, n) is declared in main.asm.
 
         .text
-        .globl  app_init, do_paint, do_erase, move_cursor, set_color
+        .globl  app_init, do_paint, do_erase, do_clear, do_resize, move_cursor
+        .globl  set_color
         .globl  entry_start, entry_add_char, entry_backspace
         .globl  entry_cancel, entry_confirm
 
@@ -92,6 +93,123 @@ do_paint:
 do_erase:
         li      a0, EMPTY
         j       set_cursor_cell
+
+# do_clear() -> a0 = 1 if any cell of the n x n grid changed, else 0 (c key)
+# Sets every cell of the current n x n grid to EMPTY (section 2.7).
+# Uses: a0-a2, t0 (+ callees').  Calls: grid_get, grid_set.
+# Saves: ra, s8-s10.  Reads globals: s0, s1.
+do_clear:
+        addi    sp, sp, -16
+        sw      ra, 12(sp)
+        sw      s8, 8(sp)
+        sw      s9, 4(sp)
+        sw      s10, 0(sp)
+        li      s10, 0                  # s10 = changed flag
+        li      s8, 0                   # s8 = row
+do_clear_row:
+        bge     s8, s1, do_clear_done
+        li      s9, 0                   # s9 = col
+do_clear_col:
+        bge     s9, s1, do_clear_next_row
+        mv      a0, s8
+        mv      a1, s9
+        jal     grid_get
+        li      t0, EMPTY
+        beq     a0, t0, do_clear_skip
+        mv      a0, s8
+        mv      a1, s9
+        li      a2, EMPTY
+        jal     grid_set
+        li      s10, 1
+do_clear_skip:
+        addi    s9, s9, 1
+        j       do_clear_col
+do_clear_next_row:
+        addi    s8, s8, 1
+        j       do_clear_row
+do_clear_done:
+        mv      a0, s10
+        lw      s10, 0(sp)
+        lw      s9, 4(sp)
+        lw      s8, 8(sp)
+        lw      ra, 12(sp)
+        addi    sp, sp, 16
+        ret
+
+# do_resize(a0 = delta) -> a0 = 1 if n changed, 0 if it did nothing
+# Changes n by delta (+RESIZE_STEP grow, -RESIZE_STEP shrink). Returns 0 for
+# a zero delta or when the new size leaves [MIN_N, MAX_N]. Shrinking sets the
+# cells outside the new size to EMPTY. Then it recomputes the cell size and
+# offset (s5, s6), and clamps the cursor into the new grid.
+# WRITES GLOBALS: s1 and n (.data), s5, s6, and s3/s4 (through move_cursor).
+# Uses: a0-a3, t0.  Calls: grid_set, grid_cell_size, grid_offset, move_cursor.
+# Saves: ra, s8-s11.  Reads globals: s0, s1.
+do_resize:
+        addi    sp, sp, -32
+        sw      ra, 28(sp)
+        sw      s8, 24(sp)
+        sw      s9, 20(sp)
+        sw      s10, 16(sp)
+        sw      s11, 12(sp)
+
+        add     s8, s1, a0              # s8 = next n
+        beq     s8, s1, do_resize_fail  # zero delta
+        li      t0, MIN_N
+        blt     s8, t0, do_resize_fail
+        li      t0, MAX_N
+        bgt     s8, t0, do_resize_fail
+        bge     s8, s1, do_resize_set   # growing: nothing to clear
+
+        # shrinking: clear cells with row >= next or col >= next
+        mv      s11, s1                 # s11 = old n
+        li      s9, 0                   # s9 = row
+do_resize_row:
+        bge     s9, s11, do_resize_set
+        li      s10, 0                  # s10 = col
+do_resize_col:
+        bge     s10, s11, do_resize_next_row
+        bge     s9, s8, do_resize_clear
+        bge     s10, s8, do_resize_clear
+        j       do_resize_col_next
+do_resize_clear:
+        mv      a0, s9
+        mv      a1, s10
+        li      a2, EMPTY
+        jal     grid_set
+do_resize_col_next:
+        addi    s10, s10, 1
+        j       do_resize_col
+do_resize_next_row:
+        addi    s9, s9, 1
+        j       do_resize_row
+
+do_resize_set:
+        mv      s1, s8
+        la      t0, n
+        sw      s1, 0(t0)               # mirror n in .data
+        li      a0, CANVAS_UNITS
+        mv      a1, s1
+        jal     grid_cell_size
+        mv      s5, a0                  # s5 = cell size
+        li      a0, CANVAS_UNITS
+        mv      a1, s1
+        jal     grid_offset
+        mv      s6, a0                  # s6 = canvas offset
+        li      a0, 0                   # clamp the cursor (delta 0 = no move)
+        li      a1, 0
+        jal     move_cursor
+        li      a0, 1
+        j       do_resize_ret
+do_resize_fail:
+        li      a0, 0
+do_resize_ret:
+        lw      s11, 12(sp)
+        lw      s10, 16(sp)
+        lw      s9, 20(sp)
+        lw      s8, 24(sp)
+        lw      ra, 28(sp)
+        addi    sp, sp, 32
+        ret
 
 # move_cursor(a0 = drow, a1 = dcol) -> a0 = 1 if the cursor moved, else 0
 # Moves (s3, s4) by the deltas, clamped to 0..n-1 (no wrap, section 2.8 rule).

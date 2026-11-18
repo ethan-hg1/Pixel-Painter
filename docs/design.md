@@ -89,6 +89,9 @@ Globals (set once in `main`, never repurposed):
 | `set_cursor_cell` | a0 = color | a0 = 1 changed / 0 same | a0-a2, t0 (saves s8) | grid_get, grid_set | reads s0, s3, s4 |
 | `do_paint` | - | a0 = 1 changed / 0 same | a0-a2, t0 | set_cursor_cell (tail jump) | reads s2 (+ set_cursor_cell's) |
 | `do_erase` | - | a0 = 1 changed / 0 same | a0-a2, t0 | set_cursor_cell (tail jump) | reads s3, s4 (+ set_cursor_cell's) |
+| `do_clear` | - | a0 = 1 changed / 0 | a0-a2, t0 (saves s8-s10) | grid_get, grid_set | reads s0, s1 |
+| `do_resize` | a0 = delta | a0 = 1 changed / 0 | a0-a3, t0 (saves s8-s11) | grid_set, grid_cell_size, grid_offset, move_cursor | reads s0, s1; **writes s1 (and n), s5, s6**, s3/s4 (via move_cursor) |
+| `redraw_all` (input.asm) | - | - | a0-a4, t0-t4 | draw_background, draw_canvas, draw_cursor, draw_preview | reads s1-s7 |
 | `move_cursor` | a0 = drow, a1 = dcol | a0 = 1 moved / 0 | a0, a1, t0-t2 | - | reads s1; **writes s3, s4** |
 | `axis_index` | a0 = p, a1 = origin, a2 = canvas, a3 = n | a0 = index / -1 | t0-t3 | - | - |
 | `grid_cell_at` | a0 = px, a1 = py, a2 = ox, a3 = oy, a4 = canvas, a5 = n | a0 = 1 inside (a1 = row, a2 = col) / 0 | a0-a3 (saves s8-s11) | axis_index | - |
@@ -114,7 +117,7 @@ Globals (set once in `main`, never repurposed):
 | `hex_digit_value` | a0 = char | a0 = 0..15 or -1 | t0 | - | - |
 | `parse_hex` | a0 = string address | a0 = 1 ok / 0, a1 = color | a0, a1, t0 | hex_digit_value | - |
 | `read_key` | - | a0 = byte, or -1 if none | t0 | - | - |
-| `handle_key` | a0 = key byte | a0 = 1 quit / 0 | a0-a7, t0-t4 (saves s8, s9) | handle_entry_key, do_paint, do_erase, move_cursor, draw_cell, draw_cursor, entry_start | reads s3, s4, entry_mode |
+| `handle_key` | a0 = key byte | a0 = 1 quit / 0 | a0-a7, t0-t4 (saves s8, s9) | handle_entry_key, do_paint, do_erase, do_clear, do_resize, redraw_all, move_cursor, draw_cell, draw_cursor, entry_start | reads s3, s4, entry_mode |
 | `handle_entry_key` | a0 = key byte | - | a0-a7, t0-t4 | entry_confirm, entry_cancel, entry_backspace, entry_add_char, draw_preview, print_current_color | - |
 | `print_current_color` | - | - | a0, a7, t0 | print_color | reads s2 |
 | `print_color` | a0 = color | - | a0, a7, t0 | - | - |

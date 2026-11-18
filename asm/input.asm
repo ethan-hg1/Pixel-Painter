@@ -37,11 +37,14 @@ read_key_none:
 #   i / j / k / l  move up / left / down / right (clamped, section 3)
 #   w  paint the cursor cell, redraw it and the cursor
 #   e  erase the cursor cell, redraw it and the cursor
+#   c  clear the canvas, redraw everything
+#   + / = grow, - shrink (RESIZE_STEP, within 8..16), redraw everything
 #   t  start color entry, print the prompt
 #   q  quit
 # Other keys are ignored.
-# Uses: a0-a7, t0-t4.  Calls: handle_entry_key, do_paint, do_erase,
-# move_cursor, draw_cell, draw_cursor, entry_start.  Saves: ra, s8, s9.
+# Uses: a0-a7, t0-t4.  Calls: handle_entry_key, do_paint, do_erase, do_clear,
+# do_resize, move_cursor, draw_cell, draw_cursor, redraw_all, entry_start.
+# Saves: ra, s8, s9.
 # Reads globals: s3, s4 (and the callees' globals).
 handle_key:
         addi    sp, sp, -16
@@ -66,6 +69,14 @@ handle_key_dispatch:
         beq     a0, t0, handle_key_paint
         li      t0, 'e'
         beq     a0, t0, handle_key_erase
+        li      t0, 'c'
+        beq     a0, t0, handle_key_clear
+        li      t0, '+'
+        beq     a0, t0, handle_key_grow
+        li      t0, '='
+        beq     a0, t0, handle_key_grow
+        li      t0, '-'
+        beq     a0, t0, handle_key_shrink
         li      t0, 'i'
         beq     a0, t0, handle_key_up
         li      t0, 'k'
@@ -96,6 +107,26 @@ handle_key_erase:
         mv      a1, s4
         jal     draw_cell
         jal     draw_cursor
+        j       handle_key_done
+
+handle_key_clear:
+        jal     do_clear
+        beqz    a0, handle_key_done
+        jal     redraw_all
+        j       handle_key_done
+
+handle_key_grow:
+        li      a0, RESIZE_STEP
+        jal     do_resize
+        beqz    a0, handle_key_done
+        jal     redraw_all
+        j       handle_key_done
+
+handle_key_shrink:
+        li      a0, -RESIZE_STEP
+        jal     do_resize
+        beqz    a0, handle_key_done
+        jal     redraw_all
         j       handle_key_done
 
 handle_key_up:
@@ -141,6 +172,23 @@ handle_key_done:
 handle_key_ret:
         lw      s9, 4(sp)
         lw      s8, 8(sp)
+        lw      ra, 12(sp)
+        addi    sp, sp, 16
+        ret
+
+# redraw_all()
+# Full redraw after a change of n or of the whole grid (c, +, -). The
+# background covers the whole display, so the preview swatch is drawn again
+# too. Same order as main's first draw.
+# Uses: a0-a4, t0-t4.  Calls: draw_background, draw_canvas, draw_cursor,
+# draw_preview.  Saves: ra.
+redraw_all:
+        addi    sp, sp, -16
+        sw      ra, 12(sp)
+        jal     draw_background
+        jal     draw_canvas
+        jal     draw_cursor
+        jal     draw_preview
         lw      ra, 12(sp)
         addi    sp, sp, 16
         ret
