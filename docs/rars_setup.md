@@ -42,7 +42,7 @@ java -jar rars1_6.jar a nc ae1 asm/smoke/key_test.asm
 
 ```sh
 java -jar rars1_6.jar nc sm se2 ae1 asm/tests/test_main.asm \
-    asm/grid.asm asm/hexparse.asm asm/app.asm
+    asm/grid.asm asm/hexparse.asm asm/app.asm asm/history.asm
 ```
 
 Prints `<n> checks, <f> failed` and exits with `<f>` (0 = all passed). The

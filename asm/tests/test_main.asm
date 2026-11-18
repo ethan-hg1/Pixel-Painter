@@ -3,7 +3,7 @@
 #
 # Run (exit code = number of failed checks, 0 = all passed):
 #   java -jar rars1_6.jar nc sm se2 ae1 asm/tests/test_main.asm \
-#        asm/grid.asm asm/hexparse.asm asm/app.asm
+#        asm/grid.asm asm/hexparse.asm asm/app.asm asm/history.asm
 # The modules are listed as extra files, not .include'd: RARS refuses to
 # include constants.asm twice in one assembly. `sm` starts at this
 # file's `main` (its helpers come first in .text).
@@ -21,10 +21,16 @@
         .align  2
 # State the modules expect (normally declared in main.asm).
         .globl  grid, n, entry_mode, entry_len, entry_buf
+        .globl  hist_records, hist_snaps, hist_start, hist_len, hist_pos
 grid:       .space  1024
 n:          .word   START_N
 entry_mode: .word   0
 entry_len:  .word   0
+hist_records: .space 2048
+hist_snaps:   .space 65536
+hist_start: .word   0
+hist_len:   .word   0
+hist_pos:   .word   0
 entry_buf:  .space  8
 
 msg_fail:       .asciz "FAIL "
@@ -102,6 +108,7 @@ l_erase:        .asciz "do_erase"
 l_hit:          .asciz "grid_cell_at"
 l_clear:        .asciz "do_clear"
 l_resize:       .asciz "do_resize"
+l_undo:         .asciz "do_undo/do_redo"
         .align  2
 hit_row:        .word   0
 hit_col:        .word   0
@@ -516,6 +523,9 @@ hit_done:
         # ---- clear and resize (step 4) -----------------------------------
         jal     clear_resize_checks
 
+        # ---- undo and redo (step 5) --------------------------------------
+        jal     undo_redo_checks
+
         # ---- summary: "<checks> checks, <failed> failed", exit(failed) ----
         mv      a0, s10
         li      a7, SYS_PRINT_INT
@@ -816,3 +826,403 @@ rc_at16:
         lw      ra, 12(sp)
         addi    sp, sp, 16
         ret
+
+
+# expect(a0 = got, a1 = want)
+# One check labelled "do_undo/do_redo". Uses: a0-a3, t0, t1.
+# Calls: check.  Saves: ra.
+expect:
+        addi    sp, sp, -16
+        sw      ra, 12(sp)
+        la      a2, l_undo
+        li      a3, 0
+        jal     check
+        lw      ra, 12(sp)
+        addi    sp, sp, 16
+        ret
+
+# check_cell(a0 = row, a1 = col, a2 = want color)
+# One check on a grid cell. Uses: a0-a3, s8 (saved).
+# Calls: grid_get, expect.  Saves: ra, s8.
+check_cell:
+        addi    sp, sp, -16
+        sw      ra, 12(sp)
+        sw      s8, 8(sp)
+        mv      s8, a2
+        jal     grid_get                # a0 = color
+        mv      a1, s8
+        jal     expect
+        lw      s8, 8(sp)
+        lw      ra, 12(sp)
+        addi    sp, sp, 16
+        ret
+
+# grow_to_max()
+# Grows n to MAX_N with do_resize, then clears the history so that the
+# resize steps are not counted by the undo checks.
+# Uses: a0, t0.  Calls: do_resize, history_clear.  Saves: ra.
+grow_to_max:
+        addi    sp, sp, -16
+        sw      ra, 12(sp)
+grow_loop:
+        li      t0, MAX_N
+        bge     s1, t0, grow_done
+        li      a0, RESIZE_STEP
+        jal     do_resize
+        j       grow_loop
+grow_done:
+        jal     history_clear
+        lw      ra, 12(sp)
+        addi    sp, sp, 16
+        ret
+
+# undo_redo_checks()
+# Step 5 cases, mirroring test_undo_redo in c/tests/test_main.c.
+# Uses: a0-a3, t0, s2-s4 (set), s8 and s9 (saved, used as counters).
+# Calls: app_init, do_paint, do_erase, do_clear, do_resize, do_undo,
+# do_redo, grow_to_max, history_clear, check_cell, expect.
+undo_redo_checks:
+        addi    sp, sp, -16
+        sw      ra, 12(sp)
+        sw      s8, 8(sp)
+        sw      s9, 4(sp)
+
+        # ---- paint 3 cells, undo 3 -> all empty; redo 3 -> back ----------
+        jal     app_init
+        li      s2, 0x00112233
+        li      s3, 0
+        li      s4, 0
+        jal     do_paint                # (0,0)
+        li      a1, 1
+        jal     expect
+        li      s4, 1
+        jal     do_paint                # (0,1)
+        li      a1, 1
+        jal     expect
+        li      s3, 1
+        li      s4, 0
+        jal     do_paint                # (1,0)
+        li      a1, 1
+        jal     expect
+        jal     do_undo
+        li      a1, 1
+        jal     expect
+        jal     do_undo
+        li      a1, 1
+        jal     expect
+        jal     do_undo
+        li      a1, 1
+        jal     expect
+        jal     do_undo
+        li      a1, 0                   # nothing left
+        jal     expect
+        li      a0, 0
+        li      a1, 0
+        li      a2, EMPTY
+        jal     check_cell
+        li      a0, 0
+        li      a1, 1
+        li      a2, EMPTY
+        jal     check_cell
+        li      a0, 1
+        li      a1, 0
+        li      a2, EMPTY
+        jal     check_cell
+        jal     do_redo
+        li      a1, 1
+        jal     expect
+        jal     do_redo
+        li      a1, 1
+        jal     expect
+        jal     do_redo
+        li      a1, 1
+        jal     expect
+        jal     do_redo
+        li      a1, 0                   # nothing left
+        jal     expect
+        li      a0, 0
+        li      a1, 0
+        li      a2, 0x00112233
+        jal     check_cell
+        li      a0, 0
+        li      a1, 1
+        li      a2, 0x00112233
+        jal     check_cell
+        li      a0, 1
+        li      a1, 0
+        li      a2, 0x00112233
+        jal     check_cell
+
+        # ---- a no-op paint or erase pushes nothing -----------------------
+        jal     app_init
+        li      s2, 0x00112233
+        li      s3, 0
+        li      s4, 0
+        jal     do_paint
+        li      a1, 1
+        jal     expect
+        jal     do_paint                # same color: no record
+        li      a1, 0
+        jal     expect
+        jal     do_erase
+        li      a1, 1
+        jal     expect
+        jal     do_erase                # already EMPTY: no record
+        li      a1, 0
+        jal     expect
+        jal     do_undo                 # undoes the erase
+        li      a1, 1
+        jal     expect
+        li      a0, 0
+        li      a1, 0
+        li      a2, 0x00112233
+        jal     check_cell
+        jal     do_undo                 # undoes the paint
+        li      a1, 1
+        jal     expect
+        li      a0, 0
+        li      a1, 0
+        li      a2, EMPTY
+        jal     check_cell
+        jal     do_undo
+        li      a1, 0
+        jal     expect
+
+        # ---- a new action after an undo discards the redo history --------
+        jal     app_init
+        li      s2, 0x00112233
+        li      s3, 0
+        li      s4, 0
+        jal     do_paint                # (0,0)
+        jal     do_undo
+        li      s3, 2
+        li      s4, 2
+        jal     do_paint                # (2,2)
+        li      a1, 1
+        jal     expect
+        jal     do_redo                 # gone
+        li      a1, 0
+        jal     expect
+        li      a0, 0
+        li      a1, 0
+        li      a2, EMPTY
+        jal     check_cell
+        li      a0, 2
+        li      a1, 2
+        li      a2, 0x00112233
+        jal     check_cell
+
+        # ---- undo after clear restores the cells; redo clears them -------
+        jal     app_init
+        li      s2, 0x00ABCDEF
+        li      s3, 0
+        li      s4, 0
+        jal     do_paint                # (0,0)
+        li      s3, 5
+        li      s4, 7
+        jal     do_paint                # (5,7)
+        jal     do_clear
+        li      a1, 1
+        jal     expect
+        li      a0, 0
+        li      a1, 0
+        li      a2, EMPTY
+        jal     check_cell
+        li      a0, 5
+        li      a1, 7
+        li      a2, EMPTY
+        jal     check_cell
+        jal     do_clear                # already empty: no record
+        li      a1, 0
+        jal     expect
+        jal     do_undo                 # undoes the clear, not a no-op
+        li      a1, 1
+        jal     expect
+        li      a0, 0
+        li      a1, 0
+        li      a2, 0x00ABCDEF
+        jal     check_cell
+        li      a0, 5
+        li      a1, 7
+        li      a2, 0x00ABCDEF
+        jal     check_cell
+        jal     do_redo
+        li      a1, 1
+        jal     expect
+        li      a0, 0
+        li      a1, 0
+        li      a2, EMPTY
+        jal     check_cell
+        li      a0, 5
+        li      a1, 7
+        li      a2, EMPTY
+        jal     check_cell
+
+        # ---- undo after shrink restores the cleared cells and n ----------
+        jal     app_init
+        li      s2, 0x00ABCDEF
+        li      a0, RESIZE_STEP
+        jal     do_resize               # 8 -> 9
+        li      s3, 0
+        li      s4, 0
+        jal     do_paint                # (0,0)
+        li      s3, 8
+        li      s4, 8
+        jal     do_paint                # (8,8), the corner
+        li      a0, -RESIZE_STEP
+        jal     do_resize               # 9 -> 8 clears (8,8)
+        li      a1, 1
+        jal     expect
+        mv      a0, s1
+        li      a1, 8
+        jal     expect
+        li      a0, 8
+        li      a1, 8
+        li      a2, EMPTY
+        jal     check_cell
+        mv      a0, s3
+        li      a1, 7                   # cursor was clamped
+        jal     expect
+        mv      a0, s4
+        li      a1, 7
+        jal     expect
+        jal     do_undo                 # back to 9
+        li      a1, 1
+        jal     expect
+        mv      a0, s1
+        li      a1, 9
+        jal     expect
+        li      a0, 8
+        li      a1, 8
+        li      a2, 0x00ABCDEF
+        jal     check_cell
+        mv      a0, s3
+        li      a1, 7
+        jal     expect
+        jal     do_redo                 # 9 -> 8 again
+        li      a1, 1
+        jal     expect
+        mv      a0, s1
+        li      a1, 8
+        jal     expect
+        li      a0, 8
+        li      a1, 8
+        li      a2, EMPTY
+        jal     check_cell
+        li      a0, 0
+        li      a1, 0
+        li      a2, 0x00ABCDEF
+        jal     check_cell
+
+        # ---- a resize refused at the limit (8 is the minimum) records nothing
+        jal     app_init
+        li      a0, -RESIZE_STEP
+        jal     do_resize
+        li      a1, 0
+        jal     expect
+        jal     do_undo
+        li      a1, 0
+        jal     expect
+
+        # ---- 65 actions: the oldest is dropped, so 64 undos are possible --
+        # Paint cell i (row i >> 4, col i & 15) with color i + 1, i = 0..64.
+        jal     app_init
+        jal     grow_to_max
+        li      s9, 0
+u65_paint:
+        li      t0, 65
+        bge     s9, t0, u65_undo
+        addi    s2, s9, 1
+        srli    s3, s9, 4
+        andi    s4, s9, 15
+        jal     do_paint
+        addi    s9, s9, 1
+        j       u65_paint
+u65_undo:
+        li      s8, 0
+        li      s9, 0
+u65_undo_loop:
+        li      t0, 65
+        bge     s9, t0, u65_undo_done
+        jal     do_undo
+        add     s8, s8, a0
+        addi    s9, s9, 1
+        j       u65_undo_loop
+u65_undo_done:
+        mv      a0, s8
+        li      a1, 64                  # HISTORY_DEPTH, not 65
+        jal     expect
+        li      a0, 0
+        li      a1, 0
+        li      a2, 1
+        jal     check_cell              # oldest action can't be undone
+        li      a0, 0
+        li      a1, 1
+        li      a2, EMPTY
+        jal     check_cell              # action 2 was undone
+        li      a0, 4
+        li      a1, 0
+        li      a2, EMPTY
+        jal     check_cell              # action 65 (cell 64) was undone
+        jal     do_undo
+        li      a1, 0
+        jal     expect
+
+        # ---- 70 actions in a row, then undo 70 times: exactly 64 ---------
+        jal     app_init
+        jal     grow_to_max
+        li      s9, 0
+u70_paint:
+        li      t0, 70
+        bge     s9, t0, u70_undo
+        addi    s2, s9, 1
+        srli    s3, s9, 4
+        andi    s4, s9, 15
+        jal     do_paint
+        addi    s9, s9, 1
+        j       u70_paint
+u70_undo:
+        li      s8, 0
+        li      s9, 0
+u70_undo_loop:
+        li      t0, 70
+        bge     s9, t0, u70_undo_done
+        jal     do_undo
+        add     s8, s8, a0
+        addi    s9, s9, 1
+        j       u70_undo_loop
+u70_undo_done:
+        mv      a0, s8
+        li      a1, 64
+        jal     expect
+        jal     do_undo                 # nothing left
+        li      a1, 0
+        jal     expect
+        li      s8, 0                   # every one of the 64 comes back
+        li      s9, 0
+u70_redo_loop:
+        li      t0, 70
+        bge     s9, t0, u70_redo_done
+        jal     do_redo
+        add     s8, s8, a0
+        addi    s9, s9, 1
+        j       u70_redo_loop
+u70_redo_done:
+        mv      a0, s8
+        li      a1, 64
+        jal     expect
+        li      a0, 4
+        li      a1, 5
+        li      a2, 70
+        jal     check_cell              # the newest action: cell 69 = (4, 5)
+        li      a0, 0
+        li      a1, 0
+        li      a2, 1
+        jal     check_cell              # the oldest was dropped, so it stayed
+
+        lw      s9, 4(sp)
+        lw      s8, 8(sp)
+        lw      ra, 12(sp)
+        addi    sp, sp, 16
+        ret
+
