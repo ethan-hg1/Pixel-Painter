@@ -27,7 +27,7 @@ static void handle_input(AppState *app)
         return;
     }
 
-    /* ctrl (Cmd on macOS) combos: clear and resize (sections 2.7, 2.8).
+    /* ctrl (Cmd on macOS) combos: clear, resize, undo/redo (sections 2.7-2.9).
      * They return early so ctrl+arrow, ctrl+w etc. do nothing else. */
     if (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL) ||
         IsKeyDown(KEY_LEFT_SUPER) || IsKeyDown(KEY_RIGHT_SUPER)) {
@@ -39,6 +39,14 @@ static void handle_input(AppState *app)
         }
         if (IsKeyPressed(KEY_MINUS) || IsKeyPressed(KEY_KP_SUBTRACT)) {
             do_resize(app, -RESIZE_STEP);
+        }
+        /* ctrl+z undo, ctrl+shift+z redo (section 2.9); shift is checked first */
+        if (IsKeyPressed(KEY_Z)) {
+            if (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) {
+                do_redo(app);
+            } else {
+                do_undo(app);
+            }
         }
         return;
     }

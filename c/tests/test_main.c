@@ -316,6 +316,145 @@ static void test_clear_and_resize(void)
     CHECK(app.cur_row == 2 && app.cur_col == 5);
 }
 
+/* 12.5 history: paint/undo/redo, redo cleared by a new action, the ring
+ * dropping the oldest record, and undo of clear and resize. */
+static void test_undo_redo(void)
+{
+    static AppState app;   /* static: AppState now holds a 66 KB history */
+    int n;
+
+    /* paint 3 cells, undo 3 -> all empty; redo 3 -> back */
+    app_init(&app);
+    set_color(&app, 0x00112233u);
+    CHECK(do_paint(&app) == 1);                 /* (0,0) */
+    move_cursor(&app, 0, 1);
+    CHECK(do_paint(&app) == 1);                 /* (0,1) */
+    app.cur_row = 1; app.cur_col = 0;
+    CHECK(do_paint(&app) == 1);                 /* (1,0) */
+    CHECK(do_undo(&app) == 1);
+    CHECK(do_undo(&app) == 1);
+    CHECK(do_undo(&app) == 1);
+    CHECK(do_undo(&app) == 0);                  /* nothing left */
+    CHECK(grid_get(app.grid, 0, 0) == EMPTY);
+    CHECK(grid_get(app.grid, 0, 1) == EMPTY);
+    CHECK(grid_get(app.grid, 1, 0) == EMPTY);
+    CHECK(do_redo(&app) == 1);
+    CHECK(do_redo(&app) == 1);
+    CHECK(do_redo(&app) == 1);
+    CHECK(do_redo(&app) == 0);                  /* nothing left */
+    CHECK(grid_get(app.grid, 0, 0) == 0x00112233u);
+    CHECK(grid_get(app.grid, 0, 1) == 0x00112233u);
+    CHECK(grid_get(app.grid, 1, 0) == 0x00112233u);
+
+    /* a no-op paint or erase pushes nothing */
+    app_init(&app);
+    set_color(&app, 0x00112233u);
+    do_paint(&app);
+    CHECK(do_paint(&app) == 0);
+    CHECK(do_erase(&app) == 1);
+    CHECK(do_erase(&app) == 0);
+    CHECK(do_undo(&app) == 1);                  /* undoes the erase */
+    CHECK(grid_get(app.grid, 0, 0) == 0x00112233u);
+    CHECK(do_undo(&app) == 1);                  /* undoes the paint */
+    CHECK(grid_get(app.grid, 0, 0) == EMPTY);
+    CHECK(do_undo(&app) == 0);
+
+    /* a new action after an undo discards the redo history */
+    app_init(&app);
+    set_color(&app, 0x00112233u);
+    do_paint(&app);                             /* (0,0) */
+    do_undo(&app);
+    move_cursor(&app, 2, 2);
+    CHECK(do_paint(&app) == 1);                 /* (2,2) */
+    CHECK(do_redo(&app) == 0);                  /* redo is gone */
+    CHECK(grid_get(app.grid, 0, 0) == EMPTY);
+    CHECK(grid_get(app.grid, 2, 2) == 0x00112233u);
+
+    /* undo after clear restores the cells; redo clears them again */
+    app_init(&app);
+    set_color(&app, 0x00ABCDEFu);
+    do_paint(&app);                             /* (0,0) */
+    move_cursor(&app, 5, 7);
+    do_paint(&app);                             /* (5,7) */
+    CHECK(do_clear(&app) == 1);
+    CHECK(grid_get(app.grid, 0, 0) == EMPTY);
+    CHECK(grid_get(app.grid, 5, 7) == EMPTY);
+    CHECK(do_clear(&app) == 0);                 /* already empty: no record */
+    CHECK(do_undo(&app) == 1);                  /* undoes the clear, not a no-op */
+    CHECK(grid_get(app.grid, 0, 0) == 0x00ABCDEFu);
+    CHECK(grid_get(app.grid, 5, 7) == 0x00ABCDEFu);
+    CHECK(do_redo(&app) == 1);
+    CHECK(grid_get(app.grid, 0, 0) == EMPTY);
+    CHECK(grid_get(app.grid, 5, 7) == EMPTY);
+
+    /* undo after shrink restores the cleared cells and n */
+    app_init(&app);
+    set_color(&app, 0x00ABCDEFu);
+    do_resize(&app, RESIZE_STEP);               /* 8 -> 9 */
+    CHECK(app.n == 9);
+    do_paint(&app);                             /* (0,0) */
+    app.cur_row = 8; app.cur_col = 8;
+    do_paint(&app);                             /* (8,8), the corner */
+    CHECK(do_resize(&app, -RESIZE_STEP) == 1);  /* 9 -> 8 clears (8,8) */
+    CHECK(app.n == 8);
+    CHECK(grid_get(app.grid, 8, 8) == EMPTY);
+    CHECK(app.cur_row == 7 && app.cur_col == 7);
+    CHECK(do_undo(&app) == 1);                  /* back to 9 */
+    CHECK(app.n == 9);
+    CHECK(grid_get(app.grid, 8, 8) == 0x00ABCDEFu);
+    CHECK(app.cur_row == 7 && app.cur_col == 7);
+    CHECK(do_redo(&app) == 1);                  /* 9 -> 8 again */
+    CHECK(app.n == 8);
+    CHECK(grid_get(app.grid, 8, 8) == EMPTY);
+    CHECK(grid_get(app.grid, 0, 0) == 0x00ABCDEFu);
+    /* a resize refused at the limit (8 is the minimum) records nothing */
+    app_init(&app);
+    CHECK(do_resize(&app, -RESIZE_STEP) == 0);
+    CHECK(do_undo(&app) == 0);
+
+    /* 65 actions: the oldest record is dropped, so 64 undos are possible.
+     * Painting cell i with color i+1 for i = 0..64 (65 actions). */
+    app_init(&app);
+    app.n = MAX_N;
+    for (int i = 0; i < 65; i++) {
+        set_color(&app, (uint32_t)(i + 1));
+        app.cur_row = i / MAX_N; app.cur_col = i % MAX_N;
+        CHECK(do_paint(&app) == 1);
+    }
+    n = 0;
+    while (do_undo(&app)) {
+        n++;
+    }
+    CHECK(n == HISTORY_DEPTH);                  /* 64, not 65 */
+    CHECK(grid_get(app.grid, 0, 0) == 1u);      /* oldest action can't undo */
+    CHECK(grid_get(app.grid, 0, 1) == EMPTY);   /* action 2 was undone */
+    CHECK(grid_get(app.grid, 4, 0) == EMPTY);   /* action 65 undone */
+    CHECK(do_undo(&app) == 0);
+
+    /* 70 actions in a row, then undo 70 times: exactly 64 undo, no crash */
+    app_init(&app);
+    app.n = MAX_N;
+    for (int i = 0; i < 70; i++) {
+        set_color(&app, (uint32_t)(i + 1));
+        app.cur_row = i / MAX_N; app.cur_col = i % MAX_N;
+        do_paint(&app);
+    }
+    n = 0;
+    for (int i = 0; i < 70; i++) {
+        n += do_undo(&app);
+    }
+    CHECK(n == HISTORY_DEPTH);
+    CHECK(do_undo(&app) == 0);
+    /* and every one of the 64 comes back on redo */
+    n = 0;
+    for (int i = 0; i < 70; i++) {
+        n += do_redo(&app);
+    }
+    CHECK(n == HISTORY_DEPTH);
+    CHECK(grid_get(app.grid, 4, 5) == 70u);     /* action 70 is cell 69 = (4, 5) */
+    CHECK(grid_get(app.grid, 0, 0) == 1u);      /* oldest was dropped, so it stayed */
+}
+
 int main(void)
 {
     test_config();
@@ -328,6 +467,7 @@ int main(void)
     test_erase_and_move();
     test_cell_hit();
     test_clear_and_resize();
+    test_undo_redo();
 
     printf("%d checks, %d failed\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
