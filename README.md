@@ -20,7 +20,6 @@ Team: Ethan, Adrian, Arion.
 | `asm/tests/` | Headless asm unit tests (`test_main.asm`) |
 | `docs/` | Design, RARS setup, keyboard findings, decisions, evidence |
 | `tests/` | Replay key scripts and golden images |
-| `BUILD_INSTRUCTIONS.txt` | Full spec and build plan |
 
 ## C version
 
