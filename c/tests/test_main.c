@@ -5,12 +5,14 @@
 #include <string.h>
 
 #include "app.h"
+#include "buttons.h"
 #include "config.h"
 #include "export_bmp.h"
 #include "export_png.h"
 #include "grid.h"
 #include "hexparse.h"
 #include "palette.h"
+#include "render.h"
 #include "replay.h"
 
 static int g_checks = 0;
@@ -680,6 +682,64 @@ static void test_replay_tokens(void)
     CHECK(replay_apply_line(&app, "s\n", NULL, err, sizeof err) == 1); /* no --out */
 }
 
+/* 2.11: the hit test (six buttons in one row, gaps between them) and the
+ * labels; each button runs the same function as its shortcut, so the
+ * results (and the undo history) match the keys. */
+static void test_buttons(void)
+{
+    int which = -1;
+    AppState app;
+
+    /* corners of the first and last button, the gap, and outside the row */
+    CHECK(button_at(BUTTON_X, BUTTON_Y, &which) == 1 && which == BTN_UNDO);
+    CHECK(button_at(BUTTON_X + BUTTON_W - 1, BUTTON_Y + BUTTON_H - 1, &which) == 1
+          && which == BTN_UNDO);
+    CHECK(button_at(BUTTON_X + BUTTON_W, BUTTON_Y, &which) == 0);   /* gap */
+    CHECK(button_at(BUTTON_X + BUTTON_W + BUTTON_GAP, BUTTON_Y, &which) == 1
+          && which == BTN_REDO);
+    CHECK(button_at(BUTTON_X + 5 * (BUTTON_W + BUTTON_GAP) + 1, BUTTON_Y + 1,
+                    &which) == 1 && which == BTN_SAVE);
+    CHECK(button_at(BUTTON_X - 1, BUTTON_Y, &which) == 0);
+    CHECK(button_at(BUTTON_X, BUTTON_Y - 1, &which) == 0);
+    CHECK(button_at(BUTTON_X, BUTTON_Y + BUTTON_H, &which) == 0);
+    CHECK(button_at(CANVAS_X, CANVAS_Y, &which) == 0);              /* canvas */
+
+    CHECK(button_label(BTN_SHRINK)[0] == 'R' && button_label(BTN_SAVE)[0] == 'S');
+    CHECK(button_label(BUTTON_COUNT)[0] == '\0');                  /* out of range */
+
+    /* undo and redo: the button does what ctrl+z / ctrl+shift+z do */
+    app_init(&app);
+    set_color(&app, 0x00112233u);
+    do_paint(&app);                                 /* cell (0, 0) */
+    CHECK(button_action(&app, BTN_UNDO) == 1);
+    CHECK(grid_get(app.grid, 0, 0) == EMPTY);
+    CHECK(button_action(&app, BTN_REDO) == 1);
+    CHECK(grid_get(app.grid, 0, 0) == 0x00112233u);
+    CHECK(button_action(&app, BTN_REDO) == 0);      /* nothing to redo */
+
+    /* clear is undoable, like c */
+    CHECK(button_action(&app, BTN_CLEAR) == 1);
+    CHECK(grid_get(app.grid, 0, 0) == EMPTY);
+    CHECK(button_action(&app, BTN_CLEAR) == 0);     /* already empty */
+    CHECK(button_action(&app, BTN_UNDO) == 1);
+    CHECK(grid_get(app.grid, 0, 0) == 0x00112233u);
+
+    /* resize: grow to 9, paint the new outer cell, shrink back to 8. The
+     * shrink clears that cell and clamps the cursor; undo brings it back. */
+    CHECK(button_action(&app, BTN_GROW) == 1 && app.n == 9);
+    app.cur_row = 8;
+    app.cur_col = 8;
+    do_paint(&app);
+    CHECK(button_action(&app, BTN_SHRINK) == 1 && app.n == 8);
+    CHECK(app.cur_row == 7 && app.cur_col == 7);    /* cursor clamped */
+    CHECK(button_action(&app, BTN_SHRINK) == 0);    /* MIN_N = 8: refused */
+    CHECK(button_action(&app, BTN_UNDO) == 1 && app.n == 9);
+    CHECK(grid_get(app.grid, 8, 8) == 0x00112233u); /* the cell is back */
+
+    /* the save button is not an action here (main.c saves) */
+    CHECK(button_action(&app, BTN_SAVE) == 0);
+}
+
 int main(void)
 {
     test_config();
@@ -696,6 +756,7 @@ int main(void)
     test_palette();
     test_export();
     test_replay_tokens();
+    test_buttons();
 
     printf("%d checks, %d failed\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;

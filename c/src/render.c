@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "buttons.h"
 #include "raylib.h"
 
 #define TEXT_COLOR   0xE0E0E0u
@@ -12,6 +13,8 @@
 #define FONT_PX      20
 #define PANEL_W      (WINDOW_W - PANEL_X - 14)
 #define EMPTY_OUTLINE 0x505050u
+#define BUTTON_FILL  0x3C3C3Cu
+#define BUTTON_EDGE  0x8A8A8Au
 
 static Color rgb(uint32_t c)
 {
@@ -138,7 +141,23 @@ static void draw_status(const AppState *app)
     char line[96];
     snprintf(line, sizeof line, "%dx%d   cursor (%d, %d)   arrows: move   w: paint   e: erase   t: color",
              app->n, app->n, app->cur_row, app->cur_col);
-    DrawText(line, CANVAS_X, WINDOW_H - FONT_PX - 10, FONT_PX, rgb(TEXT_COLOR));
+    DrawText(line, CANVAS_X, STATUS_Y, FONT_PX, rgb(TEXT_COLOR));
+}
+
+/* The button row (2.11): each button shows its label centered. */
+static void draw_buttons(void)
+{
+    for (int i = 0; i < BUTTON_COUNT; i++) {
+        int x = BUTTON_X + i * (BUTTON_W + BUTTON_GAP);
+        const char *label = button_label(i);
+        int tw = MeasureText(label, FONT_PX);
+
+        DrawRectangle(x, BUTTON_Y, BUTTON_W, BUTTON_H, rgb(BUTTON_FILL));
+        DrawRectangleLines(x, BUTTON_Y, BUTTON_W, BUTTON_H, rgb(BUTTON_EDGE));
+        DrawText(label, x + (BUTTON_W - tw) / 2,
+                 BUTTON_Y + (BUTTON_H - FONT_PX) / 2, FONT_PX,
+                 rgb(TEXT_COLOR));
+    }
 }
 
 void render_frame(const AppState *app)
@@ -149,4 +168,5 @@ void render_frame(const AppState *app)
     draw_preview(app);
     draw_palette(app);
     draw_status(app);
+    draw_buttons();
 }

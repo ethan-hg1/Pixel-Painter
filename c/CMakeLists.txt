@@ -41,7 +41,8 @@ set(PP_LOGIC_SOURCES
   src/hexparse.c
   src/export_png.c
   src/export_bmp.c
-  src/replay.c)
+  src/replay.c
+  src/buttons.c)
 
 add_library(pp_logic STATIC ${PP_LOGIC_SOURCES})
 target_include_directories(pp_logic PUBLIC src)

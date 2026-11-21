@@ -5,6 +5,7 @@
 #include <time.h>
 
 #include "app.h"
+#include "buttons.h"
 #include "raylib.h"
 #include "render.h"
 #include "replay.h"
@@ -133,6 +134,18 @@ static void handle_mouse(AppState *app)
         return;
     }
     p = GetMousePosition();
+    if (button_at((int)p.x, (int)p.y, &slot)) {
+        /* on-screen buttons (2.11): left click runs the same action as the
+         * shortcut; save asks for the path, so main.c does it */
+        if (left) {
+            if (slot == BTN_SAVE) {
+                save_picture(app);
+            } else {
+                button_action(app, slot);
+            }
+        }
+        return;
+    }
     if (palette_slot_at((int)p.x, (int)p.y, PALETTE_X, PALETTE_Y,
                         PALETTE_SWATCH, PALETTE_PITCH_X, PALETTE_PITCH_Y,
                         &slot)) {

@@ -6,7 +6,7 @@
 #include "app.h"
 
 #define WINDOW_W 900
-#define WINDOW_H 700
+#define WINDOW_H 760                 /* 700 + the button row (buttons.h) */
 
 /* Canvas: a CANVAS_PX square at (CANVAS_X, CANVAS_Y). Cells use the section
  * 7.4 a formula with canvas = CANVAS_PX (n = 8 -> 80 px, n = 16 -> 40 px). */
@@ -27,6 +27,9 @@
 #define PALETTE_SWATCH   50
 #define PALETTE_PITCH_X  80
 #define PALETTE_PITCH_Y  60
+
+/* Status line: under the canvas, above the button row. */
+#define STATUS_Y     (CANVAS_Y + CANVAS_PX + 10)
 
 /* Cursor border thickness in pixels (the asm uses 1 display unit). */
 #define CURSOR_PX    3
