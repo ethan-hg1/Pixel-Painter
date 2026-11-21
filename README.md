@@ -101,3 +101,8 @@ a 24-bit BMP (the fallback in section 11.3 of the spec).
 | Quit | close the window | q |
 
 On macOS, Cmd works like Ctrl. In the C version Esc does **not** quit (see `docs/decisions.md`).
+
+**C buttons:** the row under the canvas has Undo, Redo, Clear, Resize -,
+Resize + and Save PNG. A left click runs the same function as its shortcut,
+so undo history works the same way. The asm version has no buttons (RARS has
+no mouse; the spec makes them a stretch goal).
