@@ -1,4 +1,4 @@
-# Design (Week 2)
+# Design
 
 ## Pseudocode per action
 
@@ -69,8 +69,6 @@ palette_pick(slot):                  # keys 1..8
     if slot out of 0..7 or palette[slot] == EMPTY: return 0
     if palette[slot] == s2: return 0
     set_color(palette[slot]) ; return 1      # not part of undo
-
-TODO (later steps): do_save.
 
 ## Register allocation
 
@@ -178,7 +176,6 @@ file order). Measured with RARS 1.6 in project mode:
 `.data` total so far: 0x20C44 - 0x10000 = 68,676 bytes (grid to the end of
 entry_buf, plus the palette and history), plus the console message strings (limit 0x30000 = 196,608).
 Addresses after `palette_next` moved by 36 bytes at step 6 (from the step 5 values).
-TODO: add file buffer (`file_buf`, 52 KB) as it lands (step 7).
 
 ## Undo record layout
 
