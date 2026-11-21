@@ -16,7 +16,7 @@
         .data
         .align  2
         .globl  grid, n, entry_mode, entry_len, entry_buf
-        .globl  palette_next, palette
+        .globl  palette_next, palette, file_buf
         .globl  hist_records, hist_snaps, hist_start, hist_len, hist_pos
 grid:       .space  1024                # MAX_N * MAX_N words, stride 16
 n:          .word   START_N             # mirror of s1
@@ -30,6 +30,7 @@ hist_start: .word   0                   # ring index of the oldest record
 hist_len:   .word   0                   # valid records
 hist_pos:   .word   0                   # records currently applied
 entry_buf:  .space  8                   # ENTRY_MAX_LEN chars + 0 byte
+file_buf:   .space  53248               # PNG being written (export.asm), 52 KB
 
         .globl  main
         .text

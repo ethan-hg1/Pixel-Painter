@@ -68,7 +68,7 @@ What CI runs (assemble check, then the headless asm unit tests):
 ```sh
 java -jar rars1_6.jar a nc ae1 p asm/main.asm
 java -jar rars1_6.jar nc sm se2 ae1 asm/tests/test_main.asm \
-    asm/grid.asm asm/hexparse.asm asm/app.asm asm/history.asm asm/palette.asm
+    asm/grid.asm asm/hexparse.asm asm/app.asm asm/history.asm asm/palette.asm asm/export.asm
 ```
 
 ## Controls

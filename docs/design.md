@@ -135,6 +135,11 @@ Globals (set once in `main`, never repurposed):
 | `draw_cursor` | - | - | a0-a4, t0-t4 | grid_get, cursor_color, fill_rect | reads s0, s3-s7 |
 | `draw_preview` | - | - | a0-a4, t0-t4 | fill_rect | reads s2, s7 |
 | `draw_palette` | - | - | a0-a4, t0-t4 (saves ra, s8-s11) | fill_rect | reads s2, s7, palette |
+| `crc32_bytes` (export.asm) | a0 = address, a1 = length | a0 = CRC-32 | a0, a1, t0-t4 | - | - |
+| `adler32_bytes` (export.asm) | a0 = address, a1 = length | a0 = adler-32 | a0, a1, t0-t3 | - | - |
+| `put_be32` (export.asm) | a0 = value, a1 = destination | - | t0 | - | - |
+| `export_png` (export.asm) | - | a0 = bytes in file_buf / 0 | a0-a2, t0-t4 (saves ra, s8-s11) | grid_get, crc32_bytes, adler32_bytes, put_be32 | reads s0, s1 (n); writes file_buf |
+| `do_save` (export.asm) | - | a0 = 1 saved / 0 | a0-a2, a7, t0 (saves ra) | export_png | prints "Saved: pixel_painter.png" |
 | `set_color` | a0 = color | - | t0 | - | **writes s2** |
 | `entry_start` | - | - | t0, t1 | - | entry_mode, entry_len, entry_buf |
 | `entry_add_char` | a0 = char | a0 = 1 added / 0 ignored | t0-t2 | - | entry_len, entry_buf |
@@ -172,13 +177,14 @@ file order). Measured with RARS 1.6 in project mode:
 | 0x10020C34 | `hist_len` | 4 B | valid records |
 | 0x10020C38 | `hist_pos` | 4 B | records currently applied |
 | 0x10020C3C | `entry_buf` | 8 B | typed chars + 0 byte |
+| 0x10020C44 | `file_buf` | 52 KB | PNG being written by `export_png` (49348 bytes at 16 x 16) |
 | 0x10040000 | (display) | 64 KB | Bitmap Display, 128 x 128 words |
 | 0xFFFF0000 / 0xFFFF0004 | (MMIO) | - | keyboard control / data |
 
-`.data` total so far: 0x20C44 - 0x10000 = 68,676 bytes (grid to the end of
-entry_buf, plus the palette and history), plus the console message strings (limit 0x30000 = 196,608).
+`.data` total: 0x2DC44 - 0x10000 = 121,924 bytes (grid to the end of file_buf,
+including the palette, history and file buffer), plus the console message strings
+(limit 0x30000 = 196,608, so the display at 0x10040000 is never reached).
 Addresses after `palette_next` moved by 36 bytes at step 6 (from the step 5 values).
-TODO: add file buffer (`file_buf`, 52 KB) as it lands (step 7).
 
 ## Undo record layout
 
