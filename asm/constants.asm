@@ -31,6 +31,14 @@
 .eqv PREVIEW_INNER  22          # PREVIEW_SIZE - 2 (1-unit border each side)
 .eqv FRAME_COLOR    0x00E0E0E0  # swatch border (same as the C frame)
 
+# asm palette layout (section 7.5): 10 x 10 swatches, 2 columns, 4 rows
+.eqv PAL_X          100         # top-left swatch (slot 0)
+.eqv PAL_Y          32
+.eqv PAL_SIZE       10          # swatch width and height, units
+.eqv PAL_PITCH_X    13         # column distance
+.eqv PAL_PITCH_Y    13         # row distance
+.eqv EMPTY_OUTLINE  0x00505050  # empty slot: dark gray outline (7.5)
+
 # Syscall numbers (section 8)
 .eqv SYS_PRINT_INT      1
 .eqv SYS_PRINT_STRING   4

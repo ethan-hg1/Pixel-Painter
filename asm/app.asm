@@ -17,13 +17,14 @@
         .globl  set_color
         .globl  entry_start, entry_add_char, entry_backspace
         .globl  entry_cancel, entry_confirm
+        .globl  palette_add, palette_pick
 
 # app_init()
 # Sets every global: empty grid, n = START_N, cursor (0, 0), color black,
-# cell size / offset for n, empty history, display base.
+# cell size / offset for n, empty palette and history, display base.
 # WRITES GLOBALS: s0-s7 (this is its job).
-# Uses: a0, a1, t0 (+ callees' t0-t2).  Calls: grid_clear, history_clear,
-# grid_cell_size, grid_offset.  Saves: ra.
+# Uses: a0, a1, t0 (+ callees' t0-t2).  Calls: grid_clear, palette_init,
+# history_clear, grid_cell_size, grid_offset.  Saves: ra.
 app_init:
         addi    sp, sp, -16
         sw      ra, 12(sp)
@@ -31,6 +32,7 @@ app_init:
         la      s0, grid                # s0 = GRID_BASE
         li      s7, DISPLAY_BASE        # s7 = DISPLAY_BASE
         jal     grid_clear
+        jal     palette_init
         jal     history_clear
         li      s1, START_N             # s1 = n
         la      t0, n
@@ -276,12 +278,25 @@ set_cursor_done:
         ret
 
 # do_paint() -> a0 = 1 if the cell changed, 0 if it already had the color
-# Paints the cursor cell (s3, s4) with the current color s2.
-# Uses: a0-a2.  Calls: set_cursor_cell (tail jump).  Saves: nothing.
-# Reads globals: s2 (and set_cursor_cell's).
+# Paints the cursor cell (s3, s4) with the current color s2. Then saves the
+# color in the palette (2.6: the first paint with a color saves it; saving
+# a color already in the palette does nothing).
+# Uses: a0-a2, t0.  Calls: set_cursor_cell, palette_insert.  Saves: ra, s8.
+# Reads globals: s2, s3, s4.
 do_paint:
+        addi    sp, sp, -16
+        sw      ra, 12(sp)
+        sw      s8, 8(sp)
         mv      a0, s2
-        j       set_cursor_cell
+        jal     set_cursor_cell
+        mv      s8, a0                  # s8 = changed flag
+        mv      a0, s2
+        jal     palette_insert
+        mv      a0, s8
+        lw      s8, 8(sp)
+        lw      ra, 12(sp)
+        addi    sp, sp, 16
+        ret
 
 # do_erase() -> a0 = 1 if the cell changed, 0 if it was already EMPTY
 # Sets the cursor cell (s3, s4) to EMPTY (key e).
@@ -464,6 +479,43 @@ do_redo_none:
         li      a0, 0
 do_redo_ret:
         lw      s9, 4(sp)
+        lw      ra, 12(sp)
+        addi    sp, sp, 16
+        ret
+
+# palette_add() -> a0 = 1 if the current color was saved, 0 if it already was
+# Saves the current color (key p). Palette changes are not undoable.
+# Uses: a0.  Calls: palette_insert (tail jump).  Saves: nothing.
+# Reads globals: s2.
+palette_add:
+        mv      a0, s2
+        j       palette_insert
+
+# palette_pick(a0 = slot) -> a0 = 1 if the color changed, 0 if not
+# Makes saved slot a0 (0..7) the current color (keys 1..8). An empty slot,
+# an out-of-range slot, or the color already current does nothing.
+# WRITES GLOBALS: s2 (through set_color, when it changes).
+# Uses: a0-a1, t0-t3.  Calls: set_color.  Saves: ra.  Reads globals: s2.
+palette_pick:
+        addi    sp, sp, -16
+        sw      ra, 12(sp)
+        bltz    a0, palette_pick_no
+        li      t0, PALETTE_SLOTS
+        bge     a0, t0, palette_pick_no
+        la      t1, palette
+        slli    t2, a0, 2
+        add     t1, t1, t2
+        lw      t3, 0(t1)               # t3 = saved color
+        li      t0, EMPTY
+        beq     t3, t0, palette_pick_no
+        beq     t3, s2, palette_pick_no
+        mv      a0, t3
+        jal     set_color
+        li      a0, 1
+        j       palette_pick_ret
+palette_pick_no:
+        li      a0, 0
+palette_pick_ret:
         lw      ra, 12(sp)
         addi    sp, sp, 16
         ret

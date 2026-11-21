@@ -9,7 +9,7 @@
 
         .text
         .globl  fill_rect, draw_background, draw_cell, draw_canvas, draw_cursor
-        .globl  draw_preview
+        .globl  draw_preview, draw_palette
 
 # fill_rect(a0 = x, a1 = y, a2 = width, a3 = height, a4 = color)
 # Fills units x .. x+width-1, y .. y+height-1. Computes the first unit's
@@ -208,4 +208,120 @@ draw_cursor:
         lw      s8, 8(sp)
         lw      ra, 12(sp)
         addi    sp, sp, 16
+        ret
+
+# draw_palette()
+# Redraws the saved-color area (7.5). First clears the box that holds all
+# the swatches and their frames (x 99..123, y 31..81) to BG_COLOR. Then for
+# each slot k (column k & 1, row k >> 1): an EMPTY slot is a 1-unit dark gray
+# outline; a saved slot is filled with its color, and if that color is the
+# current one (s2) it gets a 1-unit FRAME_COLOR ring around it.
+# Uses: a0-a4, t0-t3.  Calls: fill_rect.  Saves: ra, s8-s11.
+# Reads globals: s2, s7 (and fill_rect's), palette (data).
+draw_palette:
+        addi    sp, sp, -32
+        sw      ra, 28(sp)
+        sw      s8, 24(sp)
+        sw      s9, 20(sp)
+        sw      s10, 16(sp)
+        sw      s11, 12(sp)
+
+        li      a0, 99                  # clear: frames reach x 99 .. 123
+        li      a1, 31                  # and y 31 .. 81
+        li      a2, 25
+        li      a3, 51
+        li      a4, BG_COLOR
+        jal     fill_rect
+
+        li      s8, 0                   # s8 = slot k
+draw_palette_loop:
+        li      t0, PALETTE_SLOTS
+        bge     s8, t0, draw_palette_done
+        andi    t0, s8, 1               # column
+        li      t1, PAL_PITCH_X
+        mul     s10, t0, t1
+        addi    s10, s10, PAL_X         # s10 = x of the swatch
+        srli    t0, s8, 1               # row
+        li      t1, PAL_PITCH_Y
+        mul     s11, t0, t1
+        addi    s11, s11, PAL_Y         # s11 = y of the swatch
+
+        la      t0, palette
+        slli    t1, s8, 2
+        add     t0, t0, t1
+        lw      s9, 0(t0)               # s9 = saved color (or EMPTY)
+        li      t0, EMPTY
+        bne     s9, t0, draw_palette_saved
+
+        # empty slot: 1-unit dark gray outline, interior stays background
+        mv      a0, s10                 # top
+        mv      a1, s11
+        li      a2, PAL_SIZE
+        li      a3, 1
+        li      a4, EMPTY_OUTLINE
+        jal     fill_rect
+        mv      a0, s10                 # bottom
+        addi    a1, s11, 9
+        li      a2, PAL_SIZE
+        li      a3, 1
+        li      a4, EMPTY_OUTLINE
+        jal     fill_rect
+        mv      a0, s10                 # left
+        mv      a1, s11
+        li      a2, 1
+        li      a3, PAL_SIZE
+        li      a4, EMPTY_OUTLINE
+        jal     fill_rect
+        addi    a0, s10, 9              # right
+        mv      a1, s11
+        li      a2, 1
+        li      a3, PAL_SIZE
+        li      a4, EMPTY_OUTLINE
+        jal     fill_rect
+        j       draw_palette_next
+
+draw_palette_saved:
+        mv      a0, s10                 # the swatch itself
+        mv      a1, s11
+        li      a2, PAL_SIZE
+        li      a3, PAL_SIZE
+        mv      a4, s9
+        jal     fill_rect
+        bne     s9, s2, draw_palette_next   # not the current color: no frame
+
+        addi    a0, s10, -1             # frame: top, bottom, left, right
+        addi    a1, s11, -1
+        li      a2, 12
+        li      a3, 1
+        li      a4, FRAME_COLOR
+        jal     fill_rect
+        addi    a0, s10, -1
+        addi    a1, s11, 10
+        li      a2, 12
+        li      a3, 1
+        li      a4, FRAME_COLOR
+        jal     fill_rect
+        addi    a0, s10, -1
+        addi    a1, s11, -1
+        li      a2, 1
+        li      a3, 12
+        li      a4, FRAME_COLOR
+        jal     fill_rect
+        addi    a0, s10, 10
+        addi    a1, s11, -1
+        li      a2, 1
+        li      a3, 12
+        li      a4, FRAME_COLOR
+        jal     fill_rect
+
+draw_palette_next:
+        addi    s8, s8, 1
+        j       draw_palette_loop
+draw_palette_done:
+        lw      s11, 12(sp)
+        lw      s10, 16(sp)
+        lw      s9, 20(sp)
+        lw      s8, 24(sp)
+        lw      ra, 28(sp)
+        addi    sp, sp, 32
         ret
