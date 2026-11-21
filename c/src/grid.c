@@ -1,4 +1,4 @@
-/* grid.c - see grid.h. No raylib in this file (BUILD_INSTRUCTIONS.txt 4.2). */
+/* grid.c - see grid.h. No raylib in this file. */
 #include "grid.h"
 
 uint32_t grid_get(const uint32_t *grid, int row, int col)

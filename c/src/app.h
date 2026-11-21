@@ -1,4 +1,4 @@
-/* app.h - AppState + one function per action (BUILD_INSTRUCTIONS.txt 7.3).
+/* app.h - AppState + one function per action.
  * Keyboard, mouse, buttons and replay all call these. No raylib.
  * Fields are added step by step; see section 7.3 for the full list. */
 #ifndef PP_APP_H

@@ -1,4 +1,4 @@
-/* history.h - undo/redo ring buffer (BUILD_INSTRUCTIONS.txt section 10).
+/* history.h - undo/redo ring buffer.
  * Records are pushed by the do_* actions in app.c; undo and redo use the
  * index helpers below and apply the change themselves. No raylib. */
 #ifndef PP_HISTORY_H

@@ -1,7 +1,6 @@
 # input.asm - keyboard MMIO polling, key dispatch, color entry mode,
 # console messages. Key bytes measured in docs/keyboard_findings.md.
-# The RARS console plays the role of the C status line and hex text
-# (BUILD_INSTRUCTIONS.txt 2.4, 2.5).
+# The RARS console plays the role of the C status line and hex text.
 
 .include "constants.asm"
 

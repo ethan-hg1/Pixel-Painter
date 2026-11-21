@@ -1,6 +1,6 @@
 /* grid.h - grid array, get/set cell, clear, layout and cursor color.
  * Maps onto asm/grid.asm (get/set/clear/resize) and the formulas in
- * BUILD_INSTRUCTIONS.txt section 7. No raylib. */
+ * No raylib. */
 #ifndef PP_GRID_H
 #define PP_GRID_H
 

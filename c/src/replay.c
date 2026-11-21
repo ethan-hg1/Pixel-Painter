@@ -1,4 +1,4 @@
-/* replay.c - headless replay of a key script (BUILD_INSTRUCTIONS.txt 12.2).
+/* replay.c - headless replay of a key script.
  * No raylib: every token goes through the same app.c actions the window
  * uses, so the PNG it writes is the reference for the asm version. */
 #include "replay.h"

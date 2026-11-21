@@ -1,4 +1,4 @@
-/* history.c - see history.h. No raylib in this file (BUILD_INSTRUCTIONS.txt 4.2). */
+/* history.c - see history.h. No raylib in this file. */
 #include "history.h"
 
 #include <string.h>

@@ -37,7 +37,7 @@ static int save_picture(AppState *app)
     return do_save(app, name);
 }
 
-/* Routes this frame's keys to the app actions (BUILD_INSTRUCTIONS.txt 3).
+/* Routes this frame's keys to the app actions.
  * In color entry mode every other shortcut is ignored (2.4). */
 static void handle_input(AppState *app)
 {

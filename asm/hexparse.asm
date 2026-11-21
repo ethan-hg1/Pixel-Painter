@@ -1,6 +1,6 @@
 # hexparse.asm - parse_hex. Translation of c/src/hexparse.c.
 # Valid input: optional '#', then exactly 6 hex digits (0-9, a-f, A-F),
-# then the terminating 0 byte. Nothing else (BUILD_INSTRUCTIONS.txt 2.4).
+# then the terminating 0 byte. Nothing else.
 
 .include "constants.asm"
 

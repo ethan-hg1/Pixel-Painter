@@ -1,4 +1,4 @@
-/* palette.h - 8-slot saved colors, FIFO replace (BUILD_INSTRUCTIONS.txt 2.6).
+/* palette.h - 8-slot saved colors, FIFO replace.
  * Pure functions on a plain array so they can be unit-tested without
  * raylib. app.c wraps them as palette_add / palette_pick (which also touch
  * the app's current color). */
