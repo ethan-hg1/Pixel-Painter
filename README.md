@@ -18,10 +18,13 @@ Team: Ethan, Adrian, Arion.
 | `asm/` | RISC-V version (`main.asm` + one file per module) |
 | `asm/smoke/` | Stand-alone RARS smoke tests (own `main`) |
 | `asm/tests/` | Headless asm unit tests (`test_main.asm`) |
-| `docs/` | Design, RARS setup, keyboard findings, decisions, evidence |
+| `docs/` | Setup guides (Windows, Linux), design, RARS setup, keyboard findings, decisions, evidence |
 | `tests/` | Replay key scripts and golden images |
 
 ## C version
+
+**Setup guides:** [Windows](docs/windows-setup.md) · [Linux](docs/linux-setup.md).
+They cover installing the tools, building, running the tests, and troubleshooting.
 
 ### Requirements
 
