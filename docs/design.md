@@ -1,4 +1,4 @@
-# Design (Week 2)
+# Design
 
 ## Pseudocode per action
 
@@ -69,8 +69,6 @@ palette_pick(slot):                  # keys 1..8
     if slot out of 0..7 or palette[slot] == EMPTY: return 0
     if palette[slot] == s2: return 0
     set_color(palette[slot]) ; return 1      # not part of undo
-
-TODO (later steps): do_save.
 
 ## Register allocation
 

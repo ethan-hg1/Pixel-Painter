@@ -10,9 +10,6 @@ keep a palette of 8 saved colors, undo/redo, and export a PNG.
 
 Team: Ethan, Adrian, Arion.
 
-> Status: scaffolding only. Features land step by step; see
-> `BUILD_INSTRUCTIONS.txt` section 6.
-
 ## Layout
 
 | Path | Contents |
@@ -21,8 +18,8 @@ Team: Ethan, Adrian, Arion.
 | `asm/` | RISC-V version (`main.asm` + one file per module) |
 | `asm/smoke/` | Stand-alone RARS smoke tests (own `main`) |
 | `asm/tests/` | Headless asm unit tests (`test_main.asm`) |
-| `docs/` | Plan, design, RARS setup, findings, report, decisions |
-| `tests/` | Replay key scripts, golden images, manual test plan |
+| `docs/` | Design, RARS setup, keyboard findings, decisions, evidence |
+| `tests/` | Replay key scripts and golden images |
 | `BUILD_INSTRUCTIONS.txt` | Full spec and build plan |
 
 ## C version
@@ -49,7 +46,7 @@ cmake --build build
 ./build/pp_tests               # exits 0 when all tests pass
 ```
 
-Headless replay (no window): `./build/pixel_painter --replay ../tests/scripts/demo.keys --out out.png`
+Headless replay (no window): `./build/pixel_painter --replay ../tests/scripts/export_8x8.keys --out out.png`
 
 ## Assembly version (RARS)
 
@@ -68,7 +65,8 @@ What CI runs (assemble check, then the headless asm unit tests):
 ```sh
 java -jar rars1_6.jar a nc ae1 p asm/main.asm
 java -jar rars1_6.jar nc sm se2 ae1 asm/tests/test_main.asm \
-    asm/grid.asm asm/hexparse.asm asm/app.asm asm/history.asm asm/palette.asm asm/export.asm
+    asm/grid.asm asm/hexparse.asm asm/app.asm asm/history.asm \
+    asm/palette.asm asm/export.asm
 ```
 
 ## Headless replay and exported PNGs
