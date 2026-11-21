@@ -1,11 +1,41 @@
 /* main.c - window, main loop, input dispatch. */
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "app.h"
+#include "buttons.h"
 #include "raylib.h"
 #include "render.h"
 #include "replay.h"
+
+/* Saves the picture as pixel_painter_YYYYMMDD_HHMMSS.png in the user's
+ * Downloads folder (HOME, or USERPROFILE on Windows). If that folder does
+ * not exist, the file goes to the current working directory (2.10). */
+static int save_picture(AppState *app)
+{
+    char name[64] = "pixel_painter.png";
+    char path[512];
+    const char *home;
+    time_t now = time(NULL);
+    struct tm *t = localtime(&now);
+
+    if (t != NULL) {
+        strftime(name, sizeof name, "pixel_painter_%Y%m%d_%H%M%S.png", t);
+    }
+    home = getenv("HOME");
+    if (home == NULL || home[0] == '\0') {
+        home = getenv("USERPROFILE");
+    }
+    if (home != NULL && home[0] != '\0') {
+        snprintf(path, sizeof path, "%s/Downloads/%s", home, name);
+        if (do_save(app, path)) {
+            return 1;
+        }
+    }
+    return do_save(app, name);
+}
 
 /* Routes this frame's keys to the app actions (BUILD_INSTRUCTIONS.txt 3).
  * In color entry mode every other shortcut is ignored (2.4). */
@@ -33,6 +63,9 @@ static void handle_input(AppState *app)
         IsKeyDown(KEY_LEFT_SUPER) || IsKeyDown(KEY_RIGHT_SUPER)) {
         if (IsKeyPressed(KEY_DELETE)) {
             do_clear(app);
+        }
+        if (IsKeyPressed(KEY_S)) {
+            save_picture(app);
         }
         if (IsKeyPressed(KEY_EQUAL) || IsKeyPressed(KEY_KP_ADD)) {
             do_resize(app, RESIZE_STEP);
@@ -101,6 +134,18 @@ static void handle_mouse(AppState *app)
         return;
     }
     p = GetMousePosition();
+    if (button_at((int)p.x, (int)p.y, &slot)) {
+        /* on-screen buttons (2.11): left click runs the same action as the
+         * shortcut; save asks for the path, so main.c does it */
+        if (left) {
+            if (slot == BTN_SAVE) {
+                save_picture(app);
+            } else {
+                button_action(app, slot);
+            }
+        }
+        return;
+    }
     if (palette_slot_at((int)p.x, (int)p.y, PALETTE_X, PALETTE_Y,
                         PALETTE_SWATCH, PALETTE_PITCH_X, PALETTE_PITCH_Y,
                         &slot)) {

@@ -1,8 +1,10 @@
 /* app.c - see app.h. No raylib in this file (BUILD_INSTRUCTIONS.txt 4.2). */
 #include "app.h"
 
+#include <stdio.h>
 #include <string.h>
 
+#include "export_png.h"
 #include "hexparse.h"
 
 static void set_status(AppState *app, const char *msg)
@@ -187,6 +189,19 @@ int do_redo(AppState *app)
     } else {
         apply_resize(app, r->new_n);
     }
+    return 1;
+}
+
+int do_save(AppState *app, const char *path)
+{
+    char msg[STATUS_LEN];
+
+    if (!export_png_write(app->grid, app->n, path)) {
+        set_status(app, "Save failed");
+        return 0;
+    }
+    snprintf(msg, sizeof msg, "Saved: %s", path);
+    set_status(app, msg);
     return 1;
 }
 

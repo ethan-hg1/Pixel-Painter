@@ -186,6 +186,29 @@ including the palette, history and file buffer), plus the console message string
 (limit 0x30000 = 196,608, so the display at 0x10040000 is never reached).
 Addresses after `palette_next` moved by 36 bytes at step 6 (from the step 5 values).
 
+## Export (step 7)
+
+C: `export_png.c` builds the whole file in one buffer, then writes it with one
+`fwrite`. `export_png_encode(grid, n, out, cap)` returns the byte count. Layout
+(section 11.2):
+
+```
+signature (8) | IHDR (25) | IDAT (12 + 2 + 5 + raw + 4) | IEND (12)
+raw = (n*8) * (1 + 3*n*8)     each row: filter byte 0, then R G B per pixel
+IDAT data = 78 01 | 01 | LEN (LE16) | ~LEN (LE16) | raw | adler32(raw) (BE32)
+every chunk CRC = crc32(type + data), bitwise, reflected 0xEDB88320
+```
+
+Sizes: n = 8 gives a 12420-byte file (raw 12352); n = 16 gives the largest,
+`PNG_MAX_BYTES` = 49348. `PNG_MAX_BYTES` sizes the static buffer.
+
+`do_save(app, path)` (app.c) writes the file and sets the status. The window's
+Ctrl+S (`save_picture` in main.c) picks the path. `replay.c` has no raylib, so
+it is part of `pp_logic` and is unit tested.
+
+asm (`asm/export.asm`, step 7): the same bytes, with `put_be32` into `file_buf`
+(52 KB), then one Open, Write and Close. Output file name in `.data`.
+
 ## Undo record layout
 
 Section 10 layout, the same in C (`history.h`) and asm (`history.asm`).

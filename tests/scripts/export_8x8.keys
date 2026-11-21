@@ -1,0 +1,25 @@
+# export_8x8: colors, moves, palette picks, erase, then save (8x8 -> 64 x 64 px).
+# Tokens are the asm key names (docs/decisions.md #3).
+t #FF5733
+w
+l
+w
+t #00FF00
+w
+k
+w
+l
+t #1E90FF
+w
+e
+l
+w
+p
+1
+w
+i
+j
+w
+2
+w
+k
