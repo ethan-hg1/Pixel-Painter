@@ -1,7 +1,7 @@
 # main.asm - entry point `main`, init, main loop.
 # Assemble with "Assemble all files in directory" on (see README.md).
 #
-# Global registers (section 8), set by app_init and never repurposed:
+# Global registers, set by app_init and never repurposed:
 #   s0 = GRID_BASE        s4 = cursor col
 #   s1 = n                s5 = cell size in units
 #   s2 = current color    s6 = canvas offset in units
@@ -10,7 +10,7 @@
 .include "constants.asm"
 
 # ---------------------------------------------------------------------------
-# Memory map (section 9). All global state is declared here, in this order.
+# Memory map. All global state is declared here, in this order.
 # RARS places the main file's .data first, so grid is at 0x10010000.
 # ---------------------------------------------------------------------------
         .data
@@ -24,7 +24,7 @@ entry_mode: .word   0                   # 1 while typing a hex code
 entry_len:  .word   0                   # chars in entry_buf
 palette_next: .word 0                   # slot the next save overwrites (FIFO)
 palette:    .space  32                  # PALETTE_SLOTS words, EMPTY = unused
-hist_records: .space 2048               # 64 records x 32 bytes (section 10)
+hist_records: .space 2048               # 64 records x 32 bytes
 hist_snaps:   .space 65536              # 64 snapshots x 1 KB (256 words)
 hist_start: .word   0                   # ring index of the oldest record
 hist_len:   .word   0                   # valid records

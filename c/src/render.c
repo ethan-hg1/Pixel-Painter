@@ -144,7 +144,7 @@ static void draw_status(const AppState *app)
     DrawText(line, CANVAS_X, STATUS_Y, FONT_PX, rgb(TEXT_COLOR));
 }
 
-/* The button row (2.11): each button shows its label centered. */
+/* The button row: each button shows its label centered. */
 static void draw_buttons(void)
 {
     for (int i = 0; i < BUTTON_COUNT; i++) {

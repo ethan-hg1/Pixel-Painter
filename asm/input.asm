@@ -33,7 +33,7 @@ read_key_none:
 # handle_key(a0 = key byte) -> a0 = 1 to quit, else 0
 # In color entry mode every key goes to handle_entry_key (no shortcuts).
 # Otherwise folds A-Z to lowercase and dispatches:
-#   i / j / k / l  move up / left / down / right (clamped, section 3)
+#   i / j / k / l  move up / left / down / right (clamped)
 #   w  paint the cursor cell, redraw it and the cursor
 #   e  erase the cursor cell, redraw it and the cursor
 #   c  clear the canvas, redraw everything
@@ -249,7 +249,7 @@ redraw_all:
         ret
 
 # handle_entry_key(a0 = key byte)
-# Color entry mode (2.4):
+# Color entry mode:
 #   0x0A / 0x0D  Enter: confirm. Valid -> redraw preview, print the color;
 #                invalid -> print "Invalid color", color unchanged.
 #   0x1B         Esc: cancel.

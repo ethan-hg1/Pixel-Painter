@@ -38,7 +38,7 @@ static void test_config(void)
     CHECK(CANVAS_UNITS <= DISPLAY_W && CANVAS_UNITS <= DISPLAY_H);
 }
 
-/* 12.5: cell address formula for the four corners. */
+/* Cell address formula for the four corners. */
 static void test_grid_address(void)
 {
     /* byte offset = ((row << 4) + col) << 2, as in the asm */
@@ -58,7 +58,7 @@ static void test_grid_address(void)
     CHECK(grid_get(grid, 15, 0) == 0x00123456u);
 }
 
-/* 12.5: cell size/offset for every n from 8 to 16 (asm canvas, 96 units). */
+/* Cell size/offset for every n from 8 to 16 (asm canvas, 96 units). */
 static void test_cell_layout(void)
 {
     static const int expect_cell[] = { 12, 10, 9, 8, 8, 7, 6, 6, 6 };
@@ -72,7 +72,7 @@ static void test_cell_layout(void)
     }
 }
 
-/* 12.5: luminance picks the cursor color. */
+/* Luminance picks the cursor color. */
 static void test_luminance(void)
 {
     CHECK(luminance_q8(0x00000000u) == 0);
@@ -105,7 +105,7 @@ static void test_paint(void)
     CHECK(app.grid[3 * GRID_STRIDE + 5] == 0x00FF5733u);
 }
 
-/* 12.5: parse_hex valid / invalid list, plus edge cases. */
+/* parse_hex valid / invalid list, plus edge cases. */
 static void test_parse_hex(void)
 {
     uint32_t c = 0x00ABCDEFu;
@@ -322,7 +322,7 @@ static void test_clear_and_resize(void)
     CHECK(app.cur_row == 2 && app.cur_col == 5);
 }
 
-/* 12.5 history: paint/undo/redo, redo cleared by a new action, the ring
+/* History: paint/undo/redo, redo cleared by a new action, the ring
  * dropping the oldest record, and undo of clear and resize. */
 static void test_undo_redo(void)
 {
@@ -461,7 +461,7 @@ static void test_undo_redo(void)
     CHECK(grid_get(app.grid, 0, 0) == 1u);      /* oldest was dropped, so it stayed */
 }
 
-/* 12.5 palette: no duplicates, FIFO replace when full, empty slot pick is a
+/* Palette: no duplicates, FIFO replace when full, empty slot pick is a
  * no-op. Also: paint auto-saves, p saves, and palette changes skip undo. */
 static void test_palette(void)
 {
@@ -549,7 +549,7 @@ static void test_palette(void)
     CHECK(palette_find(app.palette, 0x00445566u) == 1);
 }
 
-/* 12.5 export: crc32("IEND"), adler32("Wikipedia"), the PNG layout and
+/* Export: crc32("IEND"), adler32("Wikipedia"), the PNG layout and
  * every chunk CRC, the stored block LEN/NLEN, the adler-32 trailer, EMPTY
  * as white and the 8x scale. The 8x8 and 16x16 files are compared with the
  * golden images in CI (replay job). */
@@ -682,7 +682,7 @@ static void test_replay_tokens(void)
     CHECK(replay_apply_line(&app, "s\n", NULL, err, sizeof err) == 1); /* no --out */
 }
 
-/* 2.11: the hit test (six buttons in one row, gaps between them) and the
+/* The hit test (six buttons in one row, gaps between them) and the
  * labels; each button runs the same function as its shortcut, so the
  * results (and the undo history) match the keys. */
 static void test_buttons(void)

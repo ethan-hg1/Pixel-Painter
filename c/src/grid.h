@@ -23,7 +23,7 @@ void     grid_set(uint32_t *grid, int row, int col, uint32_t color);
 /* Sets all GRID_CELLS words to EMPTY (not just the current n x n). */
 void     grid_clear(uint32_t *grid);
 
-/* Section 7.4 a: cell = canvas / n (floor), offset = (canvas - n*cell) / 2.
+/* Cell = canvas / n (floor), offset = (canvas - n*cell) / 2.
  * canvas is CANVAS_UNITS in asm and the canvas size in pixels in C. */
 int      grid_cell_size(int canvas, int n);
 int      grid_offset(int canvas, int n);
@@ -36,7 +36,7 @@ int      grid_offset(int canvas, int n);
 int      grid_cell_at(int px, int py, int origin_x, int origin_y, int canvas,
                       int n, int *row, int *col);
 
-/* Section 7.4 b: Y = (77*R + 150*G + 29*B) >> 8, a Q8 fixed-point
+/* Y = (77*R + 150*G + 29*B) >> 8, a Q8 fixed-point
  * weighted sum. Returns 0..255. */
 int      luminance_q8(uint32_t color);
 

@@ -1,4 +1,4 @@
-/* export_bmp.h - 24-bit BMP writer, fallback (section 11.3). No raylib.
+/* export_bmp.h - 24-bit BMP writer, fallback. No raylib.
  * Same image as export_png (n * EXPORT_SCALE square, EMPTY white). The
  * width is a multiple of 8, so each row is already 4-byte aligned. */
 #ifndef PP_EXPORT_BMP_H

@@ -44,7 +44,7 @@ msg_nl:         .asciz "\n"
 msg_checks:     .asciz " checks, "
 msg_failed:     .asciz " failed\n"
 
-# --- parse_hex cases (12.5 list + edge cases): string, ok, value ---------
+# --- parse_hex cases: string, ok, value ---------
 s_h1:   .asciz "#FF5733"
 s_h2:   .asciz "ff5733"
 s_h3:   .asciz "#ff5733"
@@ -87,7 +87,7 @@ digit_cases:
         .word   '/', -1, ':', -1, '@', -1, 'G', -1, '`', -1, 'g', -1
         .word   0
 
-# --- cell size / offset for n = 8..16 on the 96-unit canvas (7.4 a) ------
+# --- cell size / offset for n = 8..16 on the 96-unit canvas ------
 cell_expect:    .word 12, 10, 9, 8, 8, 7, 6, 6, 6
 off_expect:     .word  0,  3, 3, 4, 0, 2, 6, 3, 0
 
@@ -1515,7 +1515,7 @@ slot_cases:
         .text
 
 # export_checks()
-# crc32, adler32, put_be32 on the known values of section 11.2, then the
+# crc32, adler32, put_be32 on the known values, then the
 # PNG size for an 8 x 8 and a 16 x 16 grid (the file must be 12420 and
 # 49348 bytes: see c/tests/test_main.c). The byte-for-byte check against the
 # C output is done by hand in RARS (docs/rars_setup.md), not here.

@@ -169,7 +169,7 @@ file order). Measured with RARS 1.6 in project mode:
 | 0x10010408 | `entry_len` | 4 B | chars in `entry_buf` |
 | 0x1001040C | `palette_next` | 4 B | slot the next save overwrites (FIFO) |
 | 0x10010410 | `palette` | 32 B | 8 words, EMPTY = unused slot |
-| 0x10010430 | `hist_records` | 2 KB | 64 records x 32 bytes (section 10) |
+| 0x10010430 | `hist_records` | 2 KB | 64 records x 32 bytes |
 | 0x10010C30 | `hist_snaps` | 64 KB | 64 snapshots x 1 KB (256 words each) |
 | 0x10020C30 | `hist_start` | 4 B | ring index of the oldest record |
 | 0x10020C34 | `hist_len` | 4 B | valid records |
@@ -187,8 +187,7 @@ Addresses after `palette_next` moved by 36 bytes at step 6 (from the step 5 valu
 ## Export (step 7)
 
 C: `export_png.c` builds the whole file in one buffer, then writes it with one
-`fwrite`. `export_png_encode(grid, n, out, cap)` returns the byte count. Layout
-(section 11.2):
+`fwrite`. `export_png_encode(grid, n, out, cap)` returns the byte count. Layout:
 
 ```
 signature (8) | IHDR (25) | IDAT (12 + 2 + 5 + raw + 4) | IEND (12)
@@ -209,7 +208,7 @@ asm (`asm/export.asm`, step 7): the same bytes, with `put_be32` into `file_buf`
 
 ## Undo record layout
 
-Section 10 layout, the same in C (`history.h`) and asm (`history.asm`).
+Record layout, the same in C (`history.h`) and asm (`history.asm`).
 Each record is 32 bytes; each one has a 1 KB snapshot slot at the same index.
 
 ```
@@ -255,4 +254,4 @@ do_redo():             if pos == len: return 0
 ```
 
 Key bindings: C `ctrl+z` undo, `ctrl+shift+z` redo (shift checked first).
-asm `z` undo, `y` redo (decision in section 2.9 of the spec).
+asm `z` undo, `y` redo (see the decisions log).

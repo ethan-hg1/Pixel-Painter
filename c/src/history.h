@@ -9,7 +9,7 @@
 #include "config.h"
 #include "grid.h"
 
-/* Record types (section 10, +0 type). */
+/* Record types. */
 #define HIST_PAINT   1   /* also erase: new_color = EMPTY */
 #define HIST_CLEAR   2   /* full grid snapshot in snap[] */
 #define HIST_RESIZE  3   /* full grid snapshot in snap[] */

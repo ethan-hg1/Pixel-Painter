@@ -80,7 +80,7 @@ Ctrl+S (C) writes `pixel_painter_YYYYMMDD_HHMMSS.png` to `~/Downloads`, or to
 the current directory if that folder does not exist. The PNG is hand-written:
 one stored (uncompressed) deflate block, so no zlib is needed. Each cell is
 8 x 8 pixels; EMPTY cells are white. `export_bmp.c` writes the same picture as
-a 24-bit BMP (the fallback in section 11.3 of the spec).
+a 24-bit BMP (the fallback format).
 
 ## Controls
 

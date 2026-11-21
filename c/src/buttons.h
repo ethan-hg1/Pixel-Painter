@@ -1,7 +1,7 @@
 /* buttons.h - on-screen buttons. The hit test
  * and the actions are pure logic (no raylib); render.c draws the row and
  * main.c calls these on a left click. Each button runs the same function as
- * its shortcut, so undo history works the same way (2.11). */
+ * its shortcut, so undo history works the same way. */
 #ifndef PP_BUTTONS_H
 #define PP_BUTTONS_H
 

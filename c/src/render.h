@@ -8,8 +8,8 @@
 #define WINDOW_W 900
 #define WINDOW_H 760                 /* 700 + the button row (buttons.h) */
 
-/* Canvas: a CANVAS_PX square at (CANVAS_X, CANVAS_Y). Cells use the section
- * 7.4 a formula with canvas = CANVAS_PX (n = 8 -> 80 px, n = 16 -> 40 px). */
+/* Canvas: a CANVAS_PX square at (CANVAS_X, CANVAS_Y). Cells use the
+ * cell-size formula with canvas = CANVAS_PX (n = 8 -> 80 px, n = 16 -> 40 px). */
 #define CANVAS_X     30
 #define CANVAS_Y     30
 #define CANVAS_PX    640

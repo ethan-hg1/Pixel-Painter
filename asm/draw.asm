@@ -1,7 +1,7 @@
 # draw.asm - display drawing: fill_rect, draw_background, draw_cell,
 # draw_canvas, draw_cursor. Counterpart of c/src/render.c.
 #
-# Display unit address (section 7.2):
+# Display unit address:
 #   addr = DISPLAY_BASE + ((y << 7) + x) << 2      (DISPLAY_W = 128)
 # Cell (row, col) covers units x = s6 + col*s5 .. + s5-1, y = s6 + row*s5 ..
 
@@ -41,7 +41,7 @@ fill_rect_done:
         ret
 
 # draw_preview()
-# Preview swatch (7.5): a FRAME_COLOR square at x 100..123, y 2..25 with
+# Preview swatch: a FRAME_COLOR square at x 100..123, y 2..25 with
 # the current color inside (x 101..122, y 3..24), so a 1-unit border.
 # Uses: a0-a4.  Calls: fill_rect.  Saves: ra.
 # Reads globals: s2, s7.
@@ -211,7 +211,7 @@ draw_cursor:
         ret
 
 # draw_palette()
-# Redraws the saved-color area (7.5). First clears the box that holds all
+# Redraws the saved-color area. First clears the box that holds all
 # the swatches and their frames (x 99..123, y 31..81) to BG_COLOR. Then for
 # each slot k (column k & 1, row k >> 1): an EMPTY slot is a 1-unit dark gray
 # outline; a saved slot is filled with its color, and if that color is the

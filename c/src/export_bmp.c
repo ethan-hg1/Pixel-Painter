@@ -1,4 +1,4 @@
-/* export_bmp.c - 24-bit BMP writer, fallback (section 11.3).
+/* export_bmp.c - 24-bit BMP writer, fallback.
  * No raylib in this file. */
 #include "export_bmp.h"
 

@@ -12,7 +12,7 @@
 
 /* Saves the picture as pixel_painter_YYYYMMDD_HHMMSS.png in the user's
  * Downloads folder (HOME, or USERPROFILE on Windows). If that folder does
- * not exist, the file goes to the current working directory (2.10). */
+ * not exist, the file goes to the current working directory. */
 static int save_picture(AppState *app)
 {
     char name[64] = "pixel_painter.png";
@@ -38,7 +38,7 @@ static int save_picture(AppState *app)
 }
 
 /* Routes this frame's keys to the app actions.
- * In color entry mode every other shortcut is ignored (2.4). */
+ * In color entry mode every other shortcut is ignored. */
 static void handle_input(AppState *app)
 {
     if (app->entry_mode) {
@@ -57,7 +57,7 @@ static void handle_input(AppState *app)
         return;
     }
 
-    /* ctrl (Cmd on macOS) combos: clear, resize, undo/redo (sections 2.7-2.9).
+    /* ctrl (Cmd on macOS) combos: clear, resize, undo/redo.
      * They return early so ctrl+arrow, ctrl+w etc. do nothing else. */
     if (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL) ||
         IsKeyDown(KEY_LEFT_SUPER) || IsKeyDown(KEY_RIGHT_SUPER)) {
@@ -73,7 +73,7 @@ static void handle_input(AppState *app)
         if (IsKeyPressed(KEY_MINUS) || IsKeyPressed(KEY_KP_SUBTRACT)) {
             do_resize(app, -RESIZE_STEP);
         }
-        /* ctrl+z undo, ctrl+shift+z redo (section 2.9); shift is checked first */
+        /* ctrl+z undo, ctrl+shift+z redo; shift is checked first */
         if (IsKeyPressed(KEY_Z)) {
             if (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) {
                 do_redo(app);
@@ -84,7 +84,7 @@ static void handle_input(AppState *app)
         return;
     }
 
-    /* Arrows repeat while held; paint and erase do not (section 3). */
+    /* Arrows repeat while held; paint and erase do not. */
     if (IsKeyPressed(KEY_UP) || IsKeyPressedRepeat(KEY_UP)) {
         move_cursor(app, -1, 0);
     }
@@ -103,7 +103,7 @@ static void handle_input(AppState *app)
     if (IsKeyPressed(KEY_E)) {
         do_erase(app);
     }
-    /* saved colors (2.6): p saves, 1..8 pick a slot (keypad digits too) */
+    /* saved colors: p saves, 1..8 pick a slot (keypad digits too) */
     if (IsKeyPressed(KEY_P)) {
         palette_add(app);
     }
@@ -120,9 +120,9 @@ static void handle_input(AppState *app)
     }
 }
 
-/* Mouse (section 2.2, 2.3, 2.6): a press on a cell moves the cursor there,
+/* Mouse: a press on a cell moves the cursor there,
  * then left paints or right erases. A left click on a saved-color swatch
- * picks it (2.6). Every other press does nothing. */
+ * picks it. Every other press does nothing. */
 static void handle_mouse(AppState *app)
 {
     int left = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
@@ -135,7 +135,7 @@ static void handle_mouse(AppState *app)
     }
     p = GetMousePosition();
     if (button_at((int)p.x, (int)p.y, &slot)) {
-        /* on-screen buttons (2.11): left click runs the same action as the
+        /* on-screen buttons: left click runs the same action as the
          * shortcut; save asks for the path, so main.c does it */
         if (left) {
             if (slot == BTN_SAVE) {

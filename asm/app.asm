@@ -1,6 +1,6 @@
 # app.asm - app state setup + one function per action.
 # Translation of c/src/app.c (same function names). The C AppState fields
-# live in the global registers s0-s7 (section 8) and in .data.
+# live in the global registers s0-s7 and in .data.
 #
 # Every do_* action records itself in the history (history.asm) BEFORE it
 # changes anything, and records nothing when it is a no-op. The apply_*
@@ -279,7 +279,7 @@ set_cursor_done:
 
 # do_paint() -> a0 = 1 if the cell changed, 0 if it already had the color
 # Paints the cursor cell (s3, s4) with the current color s2. Then saves the
-# color in the palette (2.6: the first paint with a color saves it; saving
+# color in the palette (the first paint with a color saves it; saving
 # a color already in the palette does nothing).
 # Uses: a0-a2, t0.  Calls: set_cursor_cell, palette_insert.  Saves: ra, s8.
 # Reads globals: s2, s3, s4.
@@ -521,7 +521,7 @@ palette_pick_ret:
         ret
 
 # move_cursor(a0 = drow, a1 = dcol) -> a0 = 1 if the cursor moved, else 0
-# Moves (s3, s4) by the deltas, clamped to 0..n-1 (no wrap, section 2.8 rule).
+# Moves (s3, s4) by the deltas, clamped to 0..n-1 (no wrap).
 # WRITES GLOBALS: s3, s4 (this is its job).
 # Uses: a0, a1, t0-t2.  Calls: none (leaf).  Saves: nothing.
 # Reads globals: s1.

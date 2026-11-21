@@ -1,4 +1,4 @@
-# palette.asm - 8-slot saved colors, FIFO replace (2.6).
+# palette.asm - 8-slot saved colors, FIFO replace.
 # Translation of c/src/palette.c (same function names). The state
 # (palette, palette_next) is declared in main.asm.
 #

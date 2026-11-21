@@ -17,29 +17,29 @@
 .eqv DISPLAY_W      128         # display width in units
 .eqv DISPLAY_H      128
 .eqv DISPLAY_ROW_BYTES 512     # DISPLAY_W * 4 (RARS .eqv has no arithmetic)
-.eqv BG_COLOR       0x00303030  # background (7.5)
+.eqv BG_COLOR       0x00303030  # background
 .eqv EMPTY_LIGHT    0x00DCDCDC  # EMPTY cells: checker by (row + col) & 1
 .eqv EMPTY_DARK     0x00C4C4C4
 .eqv DISPLAY_BASE   0x10040000
 .eqv KBD_CTRL       0xFFFF0000  # receiver control, bit 0 = ready
 .eqv KBD_DATA       0xFFFF0004  # received byte
 
-# asm display layout (section 7.5)
+# asm display layout
 .eqv PREVIEW_X      100         # preview swatch: 24 x 24 units incl. border
 .eqv PREVIEW_Y      2
 .eqv PREVIEW_SIZE   24
 .eqv PREVIEW_INNER  22          # PREVIEW_SIZE - 2 (1-unit border each side)
 .eqv FRAME_COLOR    0x00E0E0E0  # swatch border (same as the C frame)
 
-# asm palette layout (section 7.5): 10 x 10 swatches, 2 columns, 4 rows
+# asm palette layout: 10 x 10 swatches, 2 columns, 4 rows
 .eqv PAL_X          100         # top-left swatch (slot 0)
 .eqv PAL_Y          32
 .eqv PAL_SIZE       10          # swatch width and height, units
 .eqv PAL_PITCH_X    13         # column distance
 .eqv PAL_PITCH_Y    13         # row distance
-.eqv EMPTY_OUTLINE  0x00505050  # empty slot: dark gray outline (7.5)
+.eqv EMPTY_OUTLINE  0x00505050  # empty slot: dark gray outline
 
-# Syscall numbers (section 8)
+# Syscall numbers
 .eqv SYS_PRINT_INT      1
 .eqv SYS_PRINT_STRING   4
 .eqv SYS_EXIT           10
