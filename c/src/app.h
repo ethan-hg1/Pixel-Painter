@@ -11,7 +11,7 @@
 #include "history.h"
 #include "palette.h"
 
-#define STATUS_LEN 64
+#define STATUS_LEN 512             /* long enough for a saved path (2.10) */
 
 typedef struct {
     uint32_t grid[GRID_CELLS];   /* stride GRID_STRIDE, EMPTY = no color */
@@ -61,6 +61,11 @@ int  palette_add(AppState *app);
 /* Makes palette slot (0..7) the current color (keys 1..8, click). Returns 1
  * if the color changed, 0 if the slot is empty or already the current color. */
 int  palette_pick(AppState *app, int slot);
+
+/* Writes the picture (n x n cells, EXPORT_SCALE px each) to the PNG file at
+ * path (ctrl+s, section 2.10). Sets status "Saved: <path>" on success, or
+ * "Save failed" (returns 0). The caller picks the path (Downloads or cwd). */
+int  do_save(AppState *app, const char *path);
 
 /* Moves the cursor by (drow, dcol), clamped to 0..n-1 (no wrap).
  * Returns 1 if the cursor moved, 0 if it was already at that edge. */

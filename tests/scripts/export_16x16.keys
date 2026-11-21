@@ -1,0 +1,54 @@
+# export_16x16: grow to 16, a diagonal of paint, clear, undo, save.
+# Tokens are the asm key names (docs/decisions.md #3).
+=
+=
+=
+=
+=
+=
+=
+=
+t #FFD700
+w
+l
+w
+k
+w
+l
+w
+k
+w
+l
+w
+k
+w
+l
+w
+k
+w
+l
+w
+k
+w
+l
+w
+k
+w
+l
+w
+k
+w
+l
+w
+c
+z
+t #FF1493
+w
+i
+i
+j
+w
+p
+1
+w
+s

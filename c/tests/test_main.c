@@ -6,9 +6,12 @@
 
 #include "app.h"
 #include "config.h"
+#include "export_bmp.h"
+#include "export_png.h"
 #include "grid.h"
 #include "hexparse.h"
 #include "palette.h"
+#include "replay.h"
 
 static int g_checks = 0;
 static int g_failures = 0;
@@ -544,6 +547,139 @@ static void test_palette(void)
     CHECK(palette_find(app.palette, 0x00445566u) == 1);
 }
 
+/* 12.5 export: crc32("IEND"), adler32("Wikipedia"), the PNG layout and
+ * every chunk CRC, the stored block LEN/NLEN, the adler-32 trailer, EMPTY
+ * as white and the 8x scale. The 8x8 and 16x16 files are compared with the
+ * golden images in CI (replay job). */
+static uint32_t be32(const unsigned char *p)
+{
+    return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
+           ((uint32_t)p[2] << 8) | (uint32_t)p[3];
+}
+
+static void test_export(void)
+{
+    static const unsigned char wiki[] = "Wikipedia";
+    static unsigned char png[PNG_MAX_BYTES];
+    static const unsigned char sig[8] = { 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A };
+    uint32_t grid[GRID_CELLS];
+    size_t len;
+
+    CHECK(crc32_bytes((const unsigned char *)"IEND", 4) == 0xAE426082u);
+    CHECK(adler32_bytes(wiki, 9) == 0x11E60398u);
+
+    grid_clear(grid);
+    len = export_png_encode(grid, 8, png, sizeof png);
+    /* n = 8 at 8x scale: 64 x 64 px, raw = 64 * (1 + 192) = 12352 bytes.
+     * File = 8 + IHDR 25 + IDAT (12 + 2 + 5 + 12352 + 4) + IEND 12. */
+    CHECK(len == 12420);
+    CHECK(memcmp(png, sig, 8) == 0);
+    CHECK(be32(png + 8) == 13);
+    CHECK(memcmp(png + 12, "IHDR", 4) == 0);
+    CHECK(be32(png + 16) == 64);                 /* width */
+    CHECK(be32(png + 20) == 64);                 /* height */
+    CHECK(png[24] == 8 && png[25] == 2);         /* 8-bit RGB */
+    CHECK(png[26] == 0 && png[27] == 0 && png[28] == 0);
+    CHECK(be32(png + 29) == crc32_bytes(png + 12, 17));  /* IHDR CRC */
+
+    /* the IDAT header: zlib 78 01, final stored block, LEN and NLEN (LE) */
+    CHECK(be32(png + 33) == 12363);              /* IDAT data length */
+    CHECK(memcmp(png + 37, "IDAT", 4) == 0);
+    CHECK(png[41] == 0x78 && png[42] == 0x01);   /* zlib header, 0x7801 % 31 == 0 */
+    CHECK(png[43] == 0x01);                      /* BFINAL = 1, BTYPE = 00 */
+    CHECK(png[44] == 0x40 && png[45] == 0x30);   /* LEN = 12352 */
+    CHECK(png[46] == 0xBF && png[47] == 0xCF);   /* NLEN = ~12352 */
+    /* EMPTY is white: row 0 filter byte 0, then white pixels */
+    CHECK(png[48] == 0 && png[49] == 0xFF && png[50] == 0xFF && png[51] == 0xFF);
+    CHECK(png[240] == 0xFF);                     /* last byte of row 0 */
+    /* adler-32 trailer over the 12352 raw bytes */
+    CHECK(be32(png + 48 + 12352) == adler32_bytes(png + 48, 12352));
+    /* IDAT CRC over "IDAT" + its data (4 + 12363 - 4 + 4 bytes: type+data) */
+    CHECK(be32(png + 41 + 12363) == crc32_bytes(png + 37, 4 + 12363));
+    CHECK(be32(png + len - 4) == 0xAE426082u);   /* IEND CRC */
+    CHECK(be32(png + len - 12) == 0);            /* IEND length */
+
+    /* a painted cell: cell (0, 0) red is pixels (0..7, 0..7) of the image */
+    grid_set(grid, 0, 0, 0x00FF0000u);
+    len = export_png_encode(grid, 8, png, sizeof png);
+    CHECK(png[49] == 0xFF && png[50] == 0x00 && png[51] == 0x00);
+    CHECK(png[49 + 7 * 3] == 0xFF);              /* pixel x = 7 is still red */
+    CHECK(png[49 + 8 * 3] == 0xFF && png[50 + 8 * 3] == 0xFF); /* x = 8 white */
+    CHECK(png[49 + 8 * 3 + 2] == 0xFF);
+
+    /* 16x16 at 8x scale is 128 x 128 and the largest file (49348 bytes) */
+    grid_clear(grid);
+    len = export_png_encode(grid, 16, png, sizeof png);
+    CHECK(len == PNG_MAX_BYTES);
+    CHECK(be32(png + 16) == 128 && be32(png + 20) == 128);
+    CHECK(be32(png + len - 4) == 0xAE426082u);
+
+    /* too small a buffer, and out-of-range n, write nothing */
+    CHECK(export_png_encode(grid, 8, png, 100) == 0);
+    CHECK(export_png_encode(grid, 7, png, sizeof png) == 0);
+    CHECK(export_png_encode(grid, 17, png, sizeof png) == 0);
+
+    /* BMP: 54-byte header, rows bottom-up, B G R order */
+    {
+        static unsigned char bmp[BMP_MAX_BYTES];
+        size_t bmp_len;
+        grid_set(grid, 7, 0, 0x00112233u);       /* bottom-left cell */
+        bmp_len = export_bmp_encode(grid, 8, bmp, sizeof bmp);
+        CHECK(bmp_len == 54 + 64 * 64 * 3);
+        CHECK(bmp[0] == 'B' && bmp[1] == 'M');
+        CHECK(bmp[2] + (bmp[3] << 8) == (int)((54 + 64 * 64 * 3) & 0xFFFF));
+        CHECK(bmp[10] == 54 && bmp[11] == 0);     /* pixel offset */
+        CHECK(bmp[18] == 64 && bmp[22] == 64);    /* width, height */
+        CHECK(bmp[28] == 24);                     /* 24 bits per pixel */
+        /* first stored row = image row 63 = cells row 7: x 0..7 are 33 22 11 */
+        CHECK(bmp[54] == 0x33 && bmp[55] == 0x22 && bmp[56] == 0x11);
+        CHECK(export_bmp_encode(grid, 8, bmp, 100) == 0);
+    }
+}
+
+/* Replay tokens (decision 3): asm key names, uppercase folds, "t #RRGGBB",
+ * unknown token and bad color are errors. */
+static void test_replay_tokens(void)
+{
+    AppState app;
+    char err[96];
+
+    app_init(&app);
+    CHECK(replay_apply_line(&app, "w\n", NULL, err, sizeof err) == 0);
+    CHECK(grid_get(app.grid, 0, 0) == 0x00000000u);   /* black painted */
+    CHECK(replay_apply_line(&app, "# a comment\n", NULL, err, sizeof err) == 0);
+    CHECK(replay_apply_line(&app, "\n", NULL, err, sizeof err) == 0);
+    CHECK(replay_apply_line(&app, "t #FF5733\n", NULL, err, sizeof err) == 0);
+    CHECK(app.color == 0x00FF5733u);
+    CHECK(replay_apply_line(&app, "L\n", NULL, err, sizeof err) == 0);  /* folds to l */
+    CHECK(app.cur_col == 1);
+    CHECK(replay_apply_line(&app, "w\n", NULL, err, sizeof err) == 0);
+    CHECK(grid_get(app.grid, 0, 1) == 0x00FF5733u);
+    CHECK(replay_apply_line(&app, "I\n", NULL, err, sizeof err) == 0);  /* up, clamped */
+    CHECK(app.cur_row == 0);
+    CHECK(replay_apply_line(&app, "1\n", NULL, err, sizeof err) == 0);  /* slot 0 = black */
+    CHECK(app.color == 0x00000000u);
+    CHECK(replay_apply_line(&app, "=\n", NULL, err, sizeof err) == 0);  /* grow */
+    CHECK(app.n == 9);
+    CHECK(replay_apply_line(&app, "-\n", NULL, err, sizeof err) == 0);  /* shrink */
+    CHECK(app.n == 8);
+    CHECK(replay_apply_line(&app, "z\n", NULL, err, sizeof err) == 0);  /* undo */
+    CHECK(replay_apply_line(&app, "y\n", NULL, err, sizeof err) == 0);  /* redo */
+    CHECK(replay_apply_line(&app, "c\n", NULL, err, sizeof err) == 0);  /* clear */
+    CHECK(grid_get(app.grid, 0, 1) == EMPTY);
+    CHECK(replay_apply_line(&app, "p\n", NULL, err, sizeof err) == 0);
+
+    /* errors: each is reported, the state is unchanged */
+    CHECK(replay_apply_line(&app, "q\n", NULL, err, sizeof err) == 2);  /* quit */
+    CHECK(replay_apply_line(&app, "x\n", NULL, err, sizeof err) == 1);
+    CHECK(replay_apply_line(&app, "t #12345G\n", NULL, err, sizeof err) == 1);
+    CHECK(app.color == 0x00000000u);
+    CHECK(replay_apply_line(&app, "t #FF57331\n", NULL, err, sizeof err) == 1);
+    CHECK(app.color == 0x00000000u);
+    CHECK(replay_apply_line(&app, "w extra\n", NULL, err, sizeof err) == 1);
+    CHECK(replay_apply_line(&app, "s\n", NULL, err, sizeof err) == 1); /* no --out */
+}
+
 int main(void)
 {
     test_config();
@@ -558,6 +694,8 @@ int main(void)
     test_clear_and_resize();
     test_undo_redo();
     test_palette();
+    test_export();
+    test_replay_tokens();
 
     printf("%d checks, %d failed\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;

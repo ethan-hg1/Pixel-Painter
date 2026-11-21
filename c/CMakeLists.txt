@@ -40,14 +40,15 @@ set(PP_LOGIC_SOURCES
   src/palette.c
   src/hexparse.c
   src/export_png.c
-  src/export_bmp.c)
+  src/export_bmp.c
+  src/replay.c)
 
 add_library(pp_logic STATIC ${PP_LOGIC_SOURCES})
 target_include_directories(pp_logic PUBLIC src)
 pp_warnings(pp_logic)
 
 # --- App --------------------------------------------------------------------
-add_executable(pixel_painter src/main.c src/render.c src/replay.c)
+add_executable(pixel_painter src/main.c src/render.c)
 target_link_libraries(pixel_painter PRIVATE pp_logic raylib)
 pp_warnings(pixel_painter)
 if(APPLE)

@@ -71,6 +71,20 @@ java -jar rars1_6.jar nc sm se2 ae1 asm/tests/test_main.asm \
     asm/grid.asm asm/hexparse.asm asm/app.asm asm/history.asm
 ```
 
+## Headless replay and exported PNGs
+
+`pixel_painter --replay tests/scripts/export_8x8.keys --out out.png` runs a key
+script without a window and writes the PNG. A script has one token per line:
+the asm key names (`w e i j k l z y + - c p 1..8 s q`) and `t #RRGGBB`. Blank
+lines and lines starting with `#` are ignored. CI replays every script in
+`tests/scripts/` and compares the output with `tests/golden/` byte for byte.
+
+Ctrl+S (C) writes `pixel_painter_YYYYMMDD_HHMMSS.png` to `~/Downloads`, or to
+the current directory if that folder does not exist. The PNG is hand-written:
+one stored (uncompressed) deflate block, so no zlib is needed. Each cell is
+8 x 8 pixels; EMPTY cells are white. `export_bmp.c` writes the same picture as
+a 24-bit BMP (the fallback in section 11.3 of the spec).
+
 ## Controls
 
 | Action | C version | asm (RARS) |
