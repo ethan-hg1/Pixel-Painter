@@ -32,7 +32,7 @@ function(pp_warnings target)
   endif()
 endfunction()
 
-# Logic files: must not include raylib.h (BUILD_INSTRUCTIONS.txt 4.2).
+# Logic files: must not include raylib.h.
 set(PP_LOGIC_SOURCES
   src/app.c
   src/grid.c

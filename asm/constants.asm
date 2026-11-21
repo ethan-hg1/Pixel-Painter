@@ -1,4 +1,4 @@
-# constants.asm - every constant, BUILD_INSTRUCTIONS.txt section 7.1.
+# constants.asm - every constant.
 # Must match c/src/config.h value for value.
 # Only .eqv lines here: every other file pulls this in with
 #   .include "constants.asm"

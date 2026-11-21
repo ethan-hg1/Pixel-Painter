@@ -1,4 +1,4 @@
-# first_pixels.asm - Week 1 smoke test (BUILD_INSTRUCTIONS.txt section 5).
+# first_pixels.asm - Week 1 smoke test.
 # Assembled on its own, NOT in project mode with asm/ (it has its own main).
 #
 # Draws on the RARS Bitmap Display (unit 4x4, display 512x512, base

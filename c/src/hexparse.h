@@ -1,5 +1,5 @@
 /* hexparse.h - parse_hex(): optional '#' + exactly 6 hex digits.
- * BUILD_INSTRUCTIONS.txt 2.4. Maps onto asm/hexparse.asm. No raylib. */
+ * Maps onto asm/hexparse.asm. No raylib. */
 #ifndef PP_HEXPARSE_H
 #define PP_HEXPARSE_H
 

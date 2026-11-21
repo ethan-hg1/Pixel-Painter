@@ -1,7 +1,7 @@
 # Keyboard findings (RARS Keyboard MMIO)
 
 What byte arrives at `KBD_DATA` (0xFFFF0004) for each key, and what that
-means for `asm/input.asm`. See BUILD_INSTRUCTIONS.txt section 3.
+means for `asm/input.asm`.
 
 ## Test setup
 

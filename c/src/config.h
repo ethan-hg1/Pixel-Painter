@@ -1,4 +1,4 @@
-/* config.h - every constant, BUILD_INSTRUCTIONS.txt section 7.1.
+/* config.h - every constant.
  * Must match asm/constants.asm value for value. */
 #ifndef PP_CONFIG_H
 #define PP_CONFIG_H

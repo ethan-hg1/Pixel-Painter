@@ -1,4 +1,4 @@
-# key_test.asm - Week 1 keyboard test (BUILD_INSTRUCTIONS.txt section 3).
+# key_test.asm - Week 1 keyboard test.
 # Assembled on its own, NOT in project mode with asm/ (it has its own main).
 #
 # Prints every byte the Keyboard MMIO delivers, so each teammate can fill in

@@ -1,4 +1,4 @@
-/* app.c - see app.h. No raylib in this file (BUILD_INSTRUCTIONS.txt 4.2). */
+/* app.c - see app.h. No raylib in this file. */
 #include "app.h"
 
 #include <stdio.h>

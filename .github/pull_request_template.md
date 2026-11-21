@@ -4,8 +4,8 @@
 
 ## Build step / acceptance criteria
 
-<!-- e.g. "Step 3 Keyboard controls (C)". Copy the checklist from
-     BUILD_INSTRUCTIONS.txt section 13 and tick what passes. -->
+<!-- e.g. "Step 3 Keyboard controls (C)". List the acceptance criteria for
+     the step and tick what passes. -->
 
 - [ ]
 
@@ -15,9 +15,8 @@
 
 ## Assumptions / decisions
 
-<!-- Any ASSUMPTION from BUILD_INSTRUCTIONS.txt this PR relies on, or
-     any place it deviates from it (see docs/decisions.md). Write "None" if
-     there are none. -->
+<!-- Any assumption this PR relies on, or any place it deviates from the
+     spec (see docs/decisions.md). Write "None" if there are none. -->
 
 ## Checklist
 

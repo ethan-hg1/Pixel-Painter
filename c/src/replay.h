@@ -1,4 +1,4 @@
-/* replay.h - headless mode, BUILD_INSTRUCTIONS.txt 12.2.
+/* replay.h - headless mode.
  * No raylib: runs a key script through app.c and writes the PNG. */
 #ifndef PP_REPLAY_H
 #define PP_REPLAY_H

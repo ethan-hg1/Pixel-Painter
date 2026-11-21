@@ -1,6 +1,6 @@
 /* test_main.c - tiny assert-based test runner. No raylib.
  * Exits 0 when every check passes. Add one test function per module and
- * call it from main(). Required list: BUILD_INSTRUCTIONS.txt 12.5. */
+ * call it from main(). */
 #include <stdio.h>
 #include <string.h>
 

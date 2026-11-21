@@ -1,7 +1,7 @@
-# Decisions and deviations from BUILD_INSTRUCTIONS.txt
+# Decisions and deviations
 
-BUILD_INSTRUCTIONS.txt is the source of truth. This file records where the
-team settled an ASSUMPTION or chose to deviate from it. Every PR that relies
+This file records where the team settled an ASSUMPTION or chose to deviate
+from the spec. Every PR that relies
 on one of these should mention it.
 
 | 1 | Resize step (2.8, 7.1) | ASSUMPTION: `RESIZE_STEP = 1` | Confirmed: `RESIZE_STEP = 1`, sizes 8..16. Still a single constant. |
