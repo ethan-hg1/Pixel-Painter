@@ -42,10 +42,29 @@ java -jar rars1_6.jar a nc ae1 asm/smoke/key_test.asm
 
 ```sh
 java -jar rars1_6.jar nc sm se2 ae1 asm/tests/test_main.asm \
-    asm/grid.asm asm/hexparse.asm asm/app.asm asm/history.asm
+    asm/grid.asm asm/hexparse.asm asm/app.asm asm/history.asm asm/palette.asm asm/export.asm
 ```
 
 Prints `<n> checks, <f> failed` and exits with `<f>` (0 = all passed). The
 modules are passed as extra files rather than `.include`d, because RARS
 refuses to include `constants.asm` twice in one assembly. `sm` makes it
 start at the test's `main`.
+
+## Byte check against C (step 7, by hand)
+
+The asm PNG must be byte-identical to the C replay of the same key script.
+CI cannot type keys into RARS, so this is done by hand:
+
+1. Make the C golden with `./c/build/pixel_painter --replay tests/scripts/export_8x8.keys --out tests/golden/export_8x8.png`
+   (or use the checked-in golden).
+2. Start RARS with `bash .claude-docs/tools/rars_up.sh asm/main.asm` from the
+   repo root (the file is written to RARS's working directory).
+3. Type the script as keys, one per `xdotool key`, with `--delay 900`. Map
+   `t #FF5733` to `t numbersign F F 5 7 3 3 Return`, and finish with `s`.
+   Faster typing drops keys (decisions.md #27).
+4. Wait until RARS prints `Saved: pixel_painter.png` in its Run I/O tab, then
+   `cmp pixel_painter.png tests/golden/export_8x8.png`. No output means identical.
+5. Delete `pixel_painter.png` from the repo root. It is not committed.
+
+Checked for step 7: `export_8x8` (12420 bytes) and `export_16x16` (49348 bytes),
+both identical to the C golden (decisions.md #26).

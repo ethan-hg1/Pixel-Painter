@@ -81,7 +81,7 @@ jobs:
       - name: asm unit tests
         run: |
           java -jar "$RUNNER_TEMP/rars1_6.jar" nc sm se2 ae1 \
-            asm/tests/test_main.asm asm/grid.asm asm/hexparse.asm asm/app.asm asm/history.asm
+            asm/tests/test_main.asm asm/grid.asm asm/hexparse.asm asm/app.asm asm/history.asm asm/palette.asm asm/export.asm
 
       - name: Assemble smoke tests
         shell: bash

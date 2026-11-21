@@ -41,12 +41,16 @@ read_key_none:
 #   + / = grow, - shrink (RESIZE_STEP, within 8..16), redraw everything
 #   z  undo (also 0x1A, ctrl+z if it arrives), redraw everything
 #   y  redo, redraw everything
+#   p  save the current color in the palette, redraw the swatches
+#   1..8  pick that saved color (empty slot does nothing), print it
+#   s  save the picture as pixel_painter.png (also 0x13, ctrl+s)
 #   t  start color entry, print the prompt
 #   q  quit
 # Other keys are ignored.
 # Uses: a0-a7, t0-t4.  Calls: handle_entry_key, do_paint, do_erase, do_clear,
 # do_resize, do_undo, do_redo, move_cursor, draw_cell, draw_cursor,
-# redraw_all, entry_start.
+# redraw_all, entry_start, palette_add, palette_pick, draw_palette,
+# draw_preview, print_current_color, do_save.
 # Saves: ra, s8, s9.
 # Reads globals: s3, s4 (and the callees' globals).
 handle_key:
@@ -98,15 +102,45 @@ handle_key_dispatch:
         beq     a0, t0, handle_key_entry
         li      t0, 'q'
         beq     a0, t0, handle_key_quit
-        j       handle_key_done
+        li      t0, 's'
+        beq     a0, t0, handle_key_save
+        li      t0, 0x13                # ctrl+s, when the terminal sends it
+        beq     a0, t0, handle_key_save
+        li      t0, 'p'
+        beq     a0, t0, handle_key_palette_add
+        li      t0, '1'                 # keys 1..8 pick a saved color
+        blt     a0, t0, handle_key_done
+        li      t0, '8'
+        bgt     a0, t0, handle_key_done
+        addi    a0, a0, -49             # '1' -> slot 0
+        j       handle_key_pick
 
 handle_key_paint:
         jal     do_paint
-        beqz    a0, handle_key_done     # no change, nothing to redraw
+        mv      s8, a0                  # s8 = cell changed
+        jal     draw_palette            # the first paint may save a swatch
+        beqz    s8, handle_key_done     # no change, nothing else to redraw
         mv      a0, s3
         mv      a1, s4
         jal     draw_cell
         jal     draw_cursor
+        j       handle_key_done
+
+handle_key_save:
+        jal     do_save                 # prints "Saved: ..." or "Save failed"
+        j       handle_key_done
+
+handle_key_palette_add:
+        jal     palette_add
+        jal     draw_palette
+        j       handle_key_done
+
+handle_key_pick:                        # a0 = slot 0..7
+        jal     palette_pick
+        beqz    a0, handle_key_done
+        jal     draw_preview
+        jal     draw_palette
+        jal     print_current_color
         j       handle_key_done
 
 handle_key_erase:
@@ -198,11 +232,11 @@ handle_key_ret:
         ret
 
 # redraw_all()
-# Full redraw after a change of n or of the whole grid (c, +, -). The
-# background covers the whole display, so the preview swatch is drawn again
-# too. Same order as main's first draw.
+# Full redraw after a change of n or of the whole grid (c, +, -, z, y). The
+# background covers the whole display, so the preview swatch and the
+# palette are drawn again too. Same order as main's first draw.
 # Uses: a0-a4, t0-t4.  Calls: draw_background, draw_canvas, draw_cursor,
-# draw_preview.  Saves: ra.
+# draw_preview, draw_palette.  Saves: ra.
 redraw_all:
         addi    sp, sp, -16
         sw      ra, 12(sp)
@@ -210,6 +244,7 @@ redraw_all:
         jal     draw_canvas
         jal     draw_cursor
         jal     draw_preview
+        jal     draw_palette
         lw      ra, 12(sp)
         addi    sp, sp, 16
         ret

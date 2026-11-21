@@ -3,7 +3,7 @@
 #
 # Run (exit code = number of failed checks, 0 = all passed):
 #   java -jar rars1_6.jar nc sm se2 ae1 asm/tests/test_main.asm \
-#        asm/grid.asm asm/hexparse.asm asm/app.asm asm/history.asm
+#        asm/grid.asm asm/hexparse.asm asm/app.asm asm/history.asm asm/palette.asm asm/export.asm
 # The modules are listed as extra files, not .include'd: RARS refuses to
 # include constants.asm twice in one assembly. `sm` starts at this
 # file's `main` (its helpers come first in .text).
@@ -21,11 +21,15 @@
         .align  2
 # State the modules expect (normally declared in main.asm).
         .globl  grid, n, entry_mode, entry_len, entry_buf
+        .globl  palette_next, palette, file_buf
         .globl  hist_records, hist_snaps, hist_start, hist_len, hist_pos
 grid:       .space  1024
 n:          .word   START_N
 entry_mode: .word   0
 entry_len:  .word   0
+palette_next: .word 0
+palette:    .space  32
+file_buf:   .space  53248               # as in main.asm (export_png writes here)
 hist_records: .space 2048
 hist_snaps:   .space 65536
 hist_start: .word   0
@@ -109,6 +113,11 @@ l_hit:          .asciz "grid_cell_at"
 l_clear:        .asciz "do_clear"
 l_resize:       .asciz "do_resize"
 l_undo:         .asciz "do_undo/do_redo"
+l_palette:      .asciz "palette"
+l_export:       .asciz "export"
+s_iend:         .asciz "IEND"
+s_wiki:         .asciz "Wikipedia"
+put_buf:        .space  4
         .align  2
 hit_row:        .word   0
 hit_col:        .word   0
@@ -525,6 +534,12 @@ hit_done:
 
         # ---- undo and redo (step 5) --------------------------------------
         jal     undo_redo_checks
+
+        # ---- saved colors palette (step 6) -------------------------------
+        jal     palette_checks
+
+        # ---- PNG export (step 7) -----------------------------------------
+        jal     export_checks
 
         # ---- summary: "<checks> checks, <failed> failed", exit(failed) ----
         mv      a0, s10
@@ -1226,3 +1241,355 @@ u70_redo_done:
         addi    sp, sp, 16
         ret
 
+# pexpect(a0 = got, a1 = want)
+# One check labelled "palette". Uses: a0-a3, t0, t1.  Calls: check.
+# Saves: ra.
+pexpect:
+        addi    sp, sp, -16
+        sw      ra, 12(sp)
+        la      a2, l_palette
+        li      a3, 0
+        jal     check
+        lw      ra, 12(sp)
+        addi    sp, sp, 16
+        ret
+
+# palette_checks()
+# The palette cases of test_palette in c/tests/test_main.c, in the same
+# order: init, insert/find, no duplicates, FIFO wrap, swatch hit test, then
+# the app-level rules (paint auto-saves, p, pick, undo does not touch the
+# palette). Uses: a0-a3, t0-t4, s8, s9.  Calls: palette_init, palette_insert,
+# palette_find, palette_slot_at, palette_pick, palette_add, do_paint,
+# do_undo, do_redo, app_init, set_color, grid_get, pexpect.
+# Saves: ra, s8, s9.
+palette_checks:
+        addi    sp, sp, -16
+        sw      ra, 12(sp)
+        sw      s8, 8(sp)
+        sw      s9, 4(sp)
+
+        # ---- palette_init: all EMPTY, next = 0 -----------------------------
+        jal     palette_init
+        la      t0, palette_next
+        lw      a0, 0(t0)
+        li      a1, 0
+        jal     pexpect
+        li      s8, 0
+pc_init_loop:
+        li      t0, PALETTE_SLOTS
+        bge     s8, t0, pc_init_done
+        la      t0, palette
+        slli    t1, s8, 2
+        add     t0, t0, t1
+        lw      a0, 0(t0)
+        li      a1, EMPTY
+        jal     pexpect
+        addi    s8, s8, 1
+        j       pc_init_loop
+pc_init_done:
+
+        # ---- saves go to slots 0, 1, 2 in order ----------------------------
+        li      a0, 0x00AA0000
+        jal     palette_insert
+        li      a1, 1
+        jal     pexpect
+        li      a0, 0x0000BB00
+        jal     palette_insert
+        li      a1, 1
+        jal     pexpect
+        li      a0, 0x000000CC
+        jal     palette_insert
+        li      a1, 1
+        jal     pexpect
+        la      t0, palette_next
+        lw      a0, 0(t0)
+        li      a1, 3
+        jal     pexpect
+        li      a0, 0x0000BB00
+        jal     palette_find
+        li      a1, 1
+        jal     pexpect
+        li      a0, 0x00123456
+        jal     palette_find
+        li      a1, -1
+        jal     pexpect
+
+        # ---- no duplicates, EMPTY never saved, next does not move ----------
+        li      a0, 0x00AA0000
+        jal     palette_insert
+        li      a1, 0
+        jal     pexpect
+        li      a0, EMPTY
+        jal     palette_insert
+        li      a1, 0
+        jal     pexpect
+        la      t0, palette_next
+        lw      a0, 0(t0)
+        li      a1, 3
+        jal     pexpect
+
+        # ---- fill the last five slots (black counts) -----------------------
+        li      a0, 0x00000000
+        jal     palette_insert
+        li      a1, 1
+        jal     pexpect
+        li      a0, 0x00010101
+        jal     palette_insert
+        li      a1, 1
+        jal     pexpect
+        li      a0, 0x00020202
+        jal     palette_insert
+        li      a1, 1
+        jal     pexpect
+        li      a0, 0x00030303
+        jal     palette_insert
+        li      a1, 1
+        jal     pexpect
+        li      a0, 0x00040404
+        jal     palette_insert
+        li      a1, 1
+        jal     pexpect
+        la      t0, palette_next
+        lw      a0, 0(t0)
+        li      a1, 0                   # 8 saves wrap the ring
+        jal     pexpect
+
+        # ---- 9th distinct color overwrites slot 0, then slot 1 next --------
+        li      a0, 0x00FFFFFF
+        jal     palette_insert
+        li      a1, 1
+        jal     pexpect
+        la      t0, palette
+        lw      a0, 0(t0)
+        li      a1, 0x00FFFFFF
+        jal     pexpect
+        li      a0, 0x00AA0000
+        jal     palette_find
+        li      a1, -1
+        jal     pexpect
+        la      t0, palette_next
+        lw      a0, 0(t0)
+        li      a1, 1
+        jal     pexpect
+        li      a0, 0x00FE0000
+        jal     palette_insert
+        li      a1, 1
+        jal     pexpect
+        la      t0, palette
+        lw      a0, 4(t0)
+        li      a1, 0x00FE0000
+        jal     pexpect
+        li      a0, 0x0000BB00
+        jal     palette_find
+        li      a1, -1
+        jal     pexpect
+        li      a0, 0x000000CC
+        jal     palette_find
+        li      a1, 2                   # still there
+        jal     pexpect
+
+        # ---- swatch hit test: columns at x 710 and 790, rows 60 apart ------
+        la      s9, slot_cases
+pc_slot_loop:
+        lw      t0, 0(s9)
+        li      t1, -999                # end of table
+        beq     t0, t1, pc_slot_done
+        lw      a0, 0(s9)               # px
+        lw      a1, 4(s9)               # py
+        li      a2, 710                 # x0
+        li      a3, 390                 # y0
+        li      a4, 50                  # size
+        li      a5, 80                  # pitch_x
+        li      a6, 60                  # pitch_y
+        jal     palette_slot_at         # a0 = hit, a1 = slot (on a hit)
+        mv      t2, a1
+        lw      t3, 8(s9)               # want hit
+        mv      a1, t3
+        jal     pexpect                 # a0 is still the hit flag
+        lw      t3, 8(s9)
+        beqz    t3, pc_slot_next
+        mv      a0, t2
+        lw      a1, 12(s9)              # want slot
+        jal     pexpect
+pc_slot_next:
+        addi    s9, s9, 16
+        j       pc_slot_loop
+pc_slot_done:
+
+        # ---- app level: paint auto-saves, p saves, empty pick no-op --------
+        jal     app_init
+        li      a0, 0
+        jal     palette_pick            # empty slot does nothing
+        li      a1, 0
+        jal     pexpect
+        mv      a0, s2
+        li      a1, 0x00000000
+        jal     pexpect                 # color still black
+        li      a0, 0x00112233
+        jal     set_color
+        jal     palette_add             # p saves
+        li      a1, 1
+        jal     pexpect
+        jal     palette_add             # already saved
+        li      a1, 0
+        jal     pexpect
+        li      a0, 0x00445566
+        jal     set_color
+        jal     do_paint                # first paint auto-saves
+        li      a1, 1
+        jal     pexpect
+        li      a0, 0x00445566
+        jal     palette_find
+        li      a1, 1
+        jal     pexpect
+        jal     do_paint                # same cell, same color
+        li      a1, 0
+        jal     pexpect
+        li      a0, 0x00445566
+        jal     palette_find            # no duplicate
+        li      a1, 1
+        jal     pexpect
+        li      a0, 0
+        jal     palette_pick
+        li      a1, 1
+        jal     pexpect
+        mv      a0, s2
+        li      a1, 0x00112233
+        jal     pexpect
+        li      a0, 0
+        jal     palette_pick            # already current
+        li      a1, 0
+        jal     pexpect
+        li      a0, 5
+        jal     palette_pick            # empty slot
+        li      a1, 0
+        jal     pexpect
+        li      a0, 8
+        jal     palette_pick            # out of range
+        li      a1, 0
+        jal     pexpect
+        mv      a0, s2
+        li      a1, 0x00112233
+        jal     pexpect
+
+        # palette is not part of undo: undo the paint, the swatch stays
+        jal     do_undo
+        li      a1, 1
+        jal     pexpect
+        li      a0, 0
+        li      a1, 0
+        jal     grid_get
+        li      a1, EMPTY
+        jal     pexpect
+        li      a0, 0x00445566
+        jal     palette_find
+        li      a1, 1
+        jal     pexpect
+        jal     do_redo
+        li      a1, 1
+        jal     pexpect
+        li      a0, 0x00445566
+        jal     palette_find
+        li      a1, 1
+        jal     pexpect
+
+        lw      s9, 4(sp)
+        lw      s8, 8(sp)
+        lw      ra, 12(sp)
+        addi    sp, sp, 16
+        ret
+
+# slot_cases: px, py, want hit (0/1), want slot (when hit). -999 ends.
+        .data
+        .align  2
+slot_cases:
+        .word   710, 390, 1, 0
+        .word   800, 400, 1, 1
+        .word   800, 580, 1, 7
+        .word   760, 400, 0, 0          # gap between the columns
+        .word   720, 440, 0, 0          # gap between the rows
+        .word   709, 400, 0, 0          # left of the palette
+        .word   720, 620, 0, 0          # below the palette
+        .word   870, 400, 0, 0          # right of the palette
+        .word   -999, 0, 0, 0
+        .text
+
+# export_checks()
+# crc32, adler32, put_be32 on the known values of section 11.2, then the
+# PNG size for an 8 x 8 and a 16 x 16 grid (the file must be 12420 and
+# 49348 bytes: see c/tests/test_main.c). The byte-for-byte check against the
+# C output is done by hand in RARS (docs/rars_setup.md), not here.
+# Uses: a0-a3, t0, s8.  Calls: crc32_bytes, adler32_bytes, put_be32,
+# app_init, grow_to_max, export_png, expect-style check.  Saves: ra, s8.
+export_checks:
+        addi    sp, sp, -16
+        sw      ra, 12(sp)
+        sw      s8, 8(sp)
+
+        la      a0, s_iend
+        li      a1, 4
+        jal     crc32_bytes
+        li      a1, 0xAE426082          # crc32("IEND")
+        la      a2, l_export
+        li      a3, 0
+        jal     check
+
+        la      a0, s_wiki
+        li      a1, 9
+        jal     adler32_bytes
+        li      a1, 0x11E60398          # adler32("Wikipedia")
+        la      a2, l_export
+        li      a3, 0
+        jal     check
+
+        la      a0, s_iend
+        li      a1, 0
+        jal     crc32_bytes             # empty input: crc 0
+        li      a1, 0
+        la      a2, l_export
+        li      a3, 0
+        jal     check
+
+        li      a0, 0x11223344
+        la      a1, put_buf
+        jal     put_be32
+        la      t0, put_buf
+        lbu     a0, 0(t0)               # most significant byte first
+        li      a1, 0x11
+        la      a2, l_export
+        li      a3, 0
+        jal     check
+        la      t0, put_buf
+        lbu     a0, 3(t0)
+        li      a1, 0x44
+        la      a2, l_export
+        li      a3, 0
+        jal     check
+
+        # 8 x 8 picture -> 12420 bytes, signature in the first 4 bytes
+        jal     app_init
+        jal     export_png
+        li      a1, 12420
+        la      a2, l_export
+        li      a3, 0
+        jal     check
+        la      t0, file_buf
+        lw      a0, 0(t0)
+        li      a1, 0x474E5089          # 89 50 4E 47, little-endian word
+        la      a2, l_export
+        li      a3, 0
+        jal     check
+
+        # 16 x 16 picture -> 49348 bytes, the largest file
+        jal     app_init
+        jal     grow_to_max
+        jal     export_png
+        li      a1, 49348
+        la      a2, l_export
+        li      a3, 0
+        jal     check
+
+        lw      s8, 8(sp)
+        lw      ra, 12(sp)
+        addi    sp, sp, 16
+        ret
