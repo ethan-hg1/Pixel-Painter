@@ -3,7 +3,7 @@
 #
 # Run (exit code = number of failed checks, 0 = all passed):
 #   java -jar rars1_6.jar nc sm se2 ae1 asm/tests/test_main.asm \
-#        asm/grid.asm asm/hexparse.asm asm/app.asm asm/history.asm asm/palette.asm
+#        asm/grid.asm asm/hexparse.asm asm/app.asm asm/history.asm asm/palette.asm asm/export.asm
 # The modules are listed as extra files, not .include'd: RARS refuses to
 # include constants.asm twice in one assembly. `sm` starts at this
 # file's `main` (its helpers come first in .text).
@@ -21,7 +21,7 @@
         .align  2
 # State the modules expect (normally declared in main.asm).
         .globl  grid, n, entry_mode, entry_len, entry_buf
-        .globl  palette_next, palette
+        .globl  palette_next, palette, file_buf
         .globl  hist_records, hist_snaps, hist_start, hist_len, hist_pos
 grid:       .space  1024
 n:          .word   START_N
@@ -29,6 +29,7 @@ entry_mode: .word   0
 entry_len:  .word   0
 palette_next: .word 0
 palette:    .space  32
+file_buf:   .space  53248               # as in main.asm (export_png writes here)
 hist_records: .space 2048
 hist_snaps:   .space 65536
 hist_start: .word   0
@@ -113,6 +114,10 @@ l_clear:        .asciz "do_clear"
 l_resize:       .asciz "do_resize"
 l_undo:         .asciz "do_undo/do_redo"
 l_palette:      .asciz "palette"
+l_export:       .asciz "export"
+s_iend:         .asciz "IEND"
+s_wiki:         .asciz "Wikipedia"
+put_buf:        .space  4
         .align  2
 hit_row:        .word   0
 hit_col:        .word   0
@@ -532,6 +537,9 @@ hit_done:
 
         # ---- saved colors palette (step 6) -------------------------------
         jal     palette_checks
+
+        # ---- PNG export (step 7) -----------------------------------------
+        jal     export_checks
 
         # ---- summary: "<checks> checks, <failed> failed", exit(failed) ----
         mv      a0, s10
@@ -1505,3 +1513,83 @@ slot_cases:
         .word   870, 400, 0, 0          # right of the palette
         .word   -999, 0, 0, 0
         .text
+
+# export_checks()
+# crc32, adler32, put_be32 on the known values of section 11.2, then the
+# PNG size for an 8 x 8 and a 16 x 16 grid (the file must be 12420 and
+# 49348 bytes: see c/tests/test_main.c). The byte-for-byte check against the
+# C output is done by hand in RARS (docs/rars_setup.md), not here.
+# Uses: a0-a3, t0, s8.  Calls: crc32_bytes, adler32_bytes, put_be32,
+# app_init, grow_to_max, export_png, expect-style check.  Saves: ra, s8.
+export_checks:
+        addi    sp, sp, -16
+        sw      ra, 12(sp)
+        sw      s8, 8(sp)
+
+        la      a0, s_iend
+        li      a1, 4
+        jal     crc32_bytes
+        li      a1, 0xAE426082          # crc32("IEND")
+        la      a2, l_export
+        li      a3, 0
+        jal     check
+
+        la      a0, s_wiki
+        li      a1, 9
+        jal     adler32_bytes
+        li      a1, 0x11E60398          # adler32("Wikipedia")
+        la      a2, l_export
+        li      a3, 0
+        jal     check
+
+        la      a0, s_iend
+        li      a1, 0
+        jal     crc32_bytes             # empty input: crc 0
+        li      a1, 0
+        la      a2, l_export
+        li      a3, 0
+        jal     check
+
+        li      a0, 0x11223344
+        la      a1, put_buf
+        jal     put_be32
+        la      t0, put_buf
+        lbu     a0, 0(t0)               # most significant byte first
+        li      a1, 0x11
+        la      a2, l_export
+        li      a3, 0
+        jal     check
+        la      t0, put_buf
+        lbu     a0, 3(t0)
+        li      a1, 0x44
+        la      a2, l_export
+        li      a3, 0
+        jal     check
+
+        # 8 x 8 picture -> 12420 bytes, signature in the first 4 bytes
+        jal     app_init
+        jal     export_png
+        li      a1, 12420
+        la      a2, l_export
+        li      a3, 0
+        jal     check
+        la      t0, file_buf
+        lw      a0, 0(t0)
+        li      a1, 0x474E5089          # 89 50 4E 47, little-endian word
+        la      a2, l_export
+        li      a3, 0
+        jal     check
+
+        # 16 x 16 picture -> 49348 bytes, the largest file
+        jal     app_init
+        jal     grow_to_max
+        jal     export_png
+        li      a1, 49348
+        la      a2, l_export
+        li      a3, 0
+        jal     check
+
+        lw      s8, 8(sp)
+        lw      ra, 12(sp)
+        addi    sp, sp, 16
+        ret
