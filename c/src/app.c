@@ -79,7 +79,7 @@ static void apply_resize(AppState *app, int next)
 }
 
 /* ---- do_*: record the action, then apply it -------------------------------
- * A no-op returns 0 before anything is recorded (section 10). */
+ * A no-op returns 0 before anything is recorded. */
 
 /* Shared by paint and erase: writes color to the cursor cell unless it
  * already holds it, recording the change first. */
@@ -105,7 +105,7 @@ int do_paint(AppState *app)
 {
     int changed = set_cursor_cell(app, app->color);
 
-    /* 2.6: the first time a color paints, it is saved automatically.
+    /* The first time a color paints, it is saved automatically.
      * palette_insert ignores colors that are already saved. */
     palette_insert(app->palette, &app->palette_next, app->color);
     return changed;

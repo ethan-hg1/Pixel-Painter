@@ -1,4 +1,4 @@
-/* export_png.h - hand-written PNG writer, crc32, adler32 (section 11.2).
+/* export_png.h - hand-written PNG writer, crc32, adler32.
  * No raylib. The image is n * EXPORT_SCALE pixels square, RGB, one zlib
  * "stored" deflate block (no compression), so no zlib is needed. */
 #ifndef PP_EXPORT_PNG_H

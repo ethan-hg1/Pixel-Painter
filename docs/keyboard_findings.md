@@ -43,11 +43,11 @@ Backspace), which is why the rules below accept every known variant.
 
 ## Consequences for `input.asm`
 
-1. **Backup keys stay the main controls** (section 3): `i j k l` move,
+1. **Backup keys stay the main controls**: `i j k l` move,
    `z` undo, `y` redo, `c` clear, `+`/`=` grow, `-` shrink, `s` save, `q` quit.
    Arrows, ctrl+shift+z and ctrl+delete cannot be told apart from other keys.
 2. **Also accept the control codes that do arrive:** 0x1A as undo, 0x13 as
-   save (as section 3 asks).
+   save.
 3. **Color entry mode:** Enter = 0x0A **or** 0x0D; Backspace = 0x08 **or**
    0x7F; Esc = 0x1B.
 4. **Do not map 0x7F to clear** outside entry mode, even though ctrl+delete

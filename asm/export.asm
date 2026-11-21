@@ -1,4 +1,4 @@
-# export.asm - save the picture as a PNG (step 7, section 11.2).
+# export.asm - save the picture as a PNG (step 7).
 # Translation of c/src/export_png.c (same function names, same bytes):
 #   crc32_bytes, adler32_bytes, put_be32, export_png, do_save.
 #
@@ -6,7 +6,7 @@
 # one Open / Write / Close (syscalls 1024, 64, 57). The file name is a
 # string constant here; RARS writes it into its working directory.
 #
-# Layout (section 11.2), n x n cells at EXPORT_SCALE 8 pixels each:
+# Layout, n x n cells at EXPORT_SCALE 8 pixels each:
 #   signature | IHDR | IDAT (78 01 | 01 | LEN | ~LEN | raw | adler32) | IEND
 #   raw row = filter byte 0, then R G B per pixel; EMPTY is white.
 
@@ -47,7 +47,7 @@ crc32_done:
         ret
 
 # adler32_bytes(a0 = address, a1 = length) -> a0 = (b << 16) | a
-# a = 1 + sum of bytes, b = sum of a, both mod 65521 (section 11.2).
+# a = 1 + sum of bytes, b = sum of a, both mod 65521.
 # Uses: a0, a1, t0-t3.  Calls: none (leaf).  Saves: nothing.
 adler32_bytes:
         li      t0, 1                   # a

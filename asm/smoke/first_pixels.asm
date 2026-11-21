@@ -6,7 +6,7 @@
 #   1. one red pixel at unit (4, 4)
 #   2. a filled 8x8 orange block covering units x 16..23, y 16..23
 #
-# Every address comes from the display formula (section 7.2):
+# Every address comes from the display formula:
 #   addr = DISPLAY_BASE + (y * DISPLAY_W + x) * 4
 #        = DISPLAY_BASE + ((y << 7) + x) << 2
 

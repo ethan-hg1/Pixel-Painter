@@ -1,4 +1,4 @@
-/* export_png.c - hand-written PNG writer, crc32, adler32 (section 11.2).
+/* export_png.c - hand-written PNG writer, crc32, adler32.
  * No raylib in this file. The asm version
  * (asm/export.asm) must produce the same bytes. */
 #include "export_png.h"

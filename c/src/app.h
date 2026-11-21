@@ -1,6 +1,6 @@
 /* app.h - AppState + one function per action.
  * Keyboard, mouse, buttons and replay all call these. No raylib.
- * Fields are added step by step; see section 7.3 for the full list. */
+ * Fields are added step by step. */
 #ifndef PP_APP_H
 #define PP_APP_H
 
@@ -11,7 +11,7 @@
 #include "history.h"
 #include "palette.h"
 
-#define STATUS_LEN 512             /* long enough for a saved path (2.10) */
+#define STATUS_LEN 512             /* long enough for a saved path */
 
 typedef struct {
     uint32_t grid[GRID_CELLS];   /* stride GRID_STRIDE, EMPTY = no color */
@@ -20,7 +20,7 @@ typedef struct {
     uint32_t color;              /* current color 0x00RRGGBB */
     uint32_t palette[PALETTE_SLOTS];  /* saved colors, EMPTY = unused */
     int      palette_next;       /* slot the next save overwrites (FIFO) */
-    History  hist;               /* undo/redo, section 10 */
+    History  hist;               /* undo/redo */
     int      entry_mode;         /* 1 while typing a hex code */
     char     entry_buf[ENTRY_MAX_LEN + 1];  /* typed chars + '\0' */
     int      entry_len;
@@ -63,7 +63,7 @@ int  palette_add(AppState *app);
 int  palette_pick(AppState *app, int slot);
 
 /* Writes the picture (n x n cells, EXPORT_SCALE px each) to the PNG file at
- * path (ctrl+s, section 2.10). Sets status "Saved: <path>" on success, or
+ * path (ctrl+s). Sets status "Saved: <path>" on success, or
  * "Save failed" (returns 0). The caller picks the path (Downloads or cwd). */
 int  do_save(AppState *app, const char *path);
 
@@ -74,7 +74,7 @@ int  move_cursor(AppState *app, int drow, int dcol);
 /* Sets the current color (0x00RRGGBB). */
 void set_color(AppState *app, uint32_t color);
 
-/* Color entry mode (key t), section 2.4. While entry_mode is 1 the caller
+/* Color entry mode (key t). While entry_mode is 1 the caller
  * must route keys here and ignore every other shortcut. */
 void entry_start(AppState *app);
 /* Appends c if it is printable ASCII (0x20..0x7E) and the buffer has room

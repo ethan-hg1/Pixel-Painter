@@ -1,4 +1,4 @@
-# history.asm - undo/redo ring buffer (section 10).
+# history.asm - undo/redo ring buffer.
 # Translation of c/src/history.c (same function names). The storage is in
 # main.asm's .data: hist_records, hist_snaps, hist_start, hist_len, hist_pos.
 #

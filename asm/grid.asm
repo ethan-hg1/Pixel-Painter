@@ -1,12 +1,12 @@
 # grid.asm - grid get/set, clear, layout and cursor color.
 # Translation of c/src/grid.c (same function names, same formulas).
 #
-# Grid cell address (section 7.2):
+# Grid cell address:
 #   addr = GRID_BASE + ((row << 4) + col) << 2      (GRID_STRIDE = 16)
 
 .include "constants.asm"
 
-# grid and n are declared in main.asm (memory map, section 9).
+# grid and n are declared in main.asm (memory map).
 
         .text
         .globl  grid_get, grid_set, grid_clear
@@ -52,14 +52,14 @@ grid_clear_loop:
         ret
 
 # grid_cell_size(a0 = canvas, a1 = n) -> a0 = canvas / n (floor)
-# Section 7.4 a. canvas is CANVAS_UNITS (96) in the asm.
+# Cell size and offset. canvas is CANVAS_UNITS (96) in the asm.
 # Uses: nothing.  Calls: none (leaf).  Saves: nothing.
 grid_cell_size:
         divu    a0, a0, a1
         ret
 
 # grid_offset(a0 = canvas, a1 = n) -> a0 = (canvas - n * cell) / 2
-# Section 7.4 a: centers the canvas.
+# Centers the canvas.
 # Uses: t0, t1.  Calls: none (leaf).  Saves: nothing.
 grid_offset:
         divu    t0, a0, a1              # t0 = cell
@@ -71,7 +71,7 @@ grid_offset:
 # axis_index(a0 = p, a1 = origin, a2 = canvas, a3 = n) -> a0 = index or -1
 # One axis of grid_cell_at: maps pixel p to a cell index 0..n-1, or -1 for
 # the centering margin and outside the canvas. Cell and offset are computed
-# as in grid_cell_size / grid_offset (section 7.4 a).
+# as in grid_cell_size / grid_offset.
 # Uses: t0-t3.  Calls: none (leaf).  Saves: nothing.
 axis_index:
         divu    t0, a2, a3              # t0 = cell
@@ -137,7 +137,7 @@ grid_cell_at_done:
         ret
 
 # luminance_q8(a0 = color) -> a0 = Y in 0..255
-# Section 7.4 b, Q8 fixed point: Y = (77*R + 150*G + 29*B) >> 8.
+# Q8 fixed point: Y = (77*R + 150*G + 29*B) >> 8.
 # Uses: t0-t2.  Calls: none (leaf).  Saves: nothing.
 luminance_q8:
         srli    t0, a0, 16

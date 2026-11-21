@@ -1,4 +1,4 @@
-/* palette.c - 8-slot saved colors, FIFO replace (2.6).
+/* palette.c - 8-slot saved colors, FIFO replace.
  * No raylib in this file. */
 #include "palette.h"
 
